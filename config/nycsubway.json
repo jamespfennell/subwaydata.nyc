@@ -1,0 +1,23 @@
+{
+  "id": "nycsubway",
+  "start_day": "2021-03-15",
+  "last_updated": "2021-04-16-01:23:53",
+  "feeds": [
+    {
+      "id": "nycsubway_1234567",
+      "start_day": "2021-03-14",
+      "end_day": null
+    }
+  ],
+  "processed_days": [
+    {
+      "day": "2021-04-15",
+      "last_updated": "2021-04-16-01:23:53",
+      "sizes": {
+        "csv": 23415,
+        "sql": 505303,
+        "gtfsrt": 1341
+      }
+    }
+  ]
+}
