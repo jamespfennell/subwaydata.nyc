@@ -1,3 +1,4 @@
+{{ define "content" }}
 <p>
     Transit Data NYC hosts a dataset of train arrival times for New York City subway, starting March 15, 2021.
     For each trip that ran in the subway,
@@ -17,3 +18,20 @@
 <img src="/static/1.jpg" alt="West 8th Street station in Coney Island, Brooklyn" class="display-img">
 <p class="caption">by <a href="https://unsplash.com/@punttim">Tim Gouw</a> via Unsplash</p>
 
+<table>
+    <tr>
+        <th>Data set</th>
+        <th>First day of data</th>
+        <th>Most recent day of data</th>
+        <th>Last updated</th>
+    </tr>
+    <tr>
+        <td>{{ .NYCSubway.Name }}</td>
+        <td>{{ .NYCSubway.StartDay }}</td>
+        <td>{{ .NYCSubway.LastAvailableDay.Day }}</td>
+        <td>{{ len .NYCSubway.AvailableDays }}</td>
+        <td>{{ .NYCSubway.LastUpdated }}</td>
+    </tr>
+</table>
+
+{{ end }}

@@ -4,6 +4,7 @@ import (
 	"embed"
 	_ "embed"
 	"fmt"
+	// TODO: config2 -> config
 	config2 "github.com/jamespfennell/transitdata.nyc/config"
 	"html/template"
 	"io"
@@ -21,6 +22,7 @@ var htmlFiles embed.FS
 var staticFiles embed.FS
 
 const dataDownloadPath = `/data/([a-z]+)-(\d{4})-(\d{2})-(\d{2})-(csv|sql|gtfsrt)\.tar\.xz`
+
 var dataDownloadPathRegex = regexp.MustCompile(dataDownloadPath)
 
 func main() {
@@ -29,54 +31,69 @@ func main() {
 	http.Handle("/static/", http.FileServer(http.FS(staticFiles)))
 	http.HandleFunc("/data/", dataDownloadHandler)
 
-
-	pageHandler := pageHandler{}
+	pageHandler := pageHandler{
+		config: config2.NewProvider(),
+	}
 	pageHandler.addPage(page{
 		pattern:  "/",
-		title:    "Home",
 		template: "home.html",
 	})
 	pageHandler.addPage(page{
 		pattern:  "/software",
-		title:    "Software",
 		template: "software.html",
 	})
 	http.Handle("/", &pageHandler)
 	// TODO /config/nycsubway.json
 	log.Println("Launching HTTP server")
-	log.Fatal(http.ListenAndServe(":80", nil))
+	log.Fatal(http.ListenAndServe(":8080", nil))
 
 }
 
 type page struct {
-	pattern string
-	title string
+	// TODO: rename path
+	pattern  string
 	template string
 }
 
 type pageHandler struct {
-	patternToPage map[string]page
-	config *config2.Config
+	rootTemplate *template.Template
+	patternToTemplate map[string]*template.Template
+	config        *config2.Provider
 }
 
 func (h *pageHandler) addPage(p page) {
-	if h.patternToPage == nil {
-		h.patternToPage = map[string]page{}
+	// TODO: move this to a constructor
+	if h.patternToTemplate == nil {
+		h.rootTemplate = template.New("template")
+
+		b, err := htmlFiles.ReadFile("html/page_template.html")
+		if err != nil {
+			panic(fmt.Sprintf("Failed to read the root template: %s", err))
+		}
+		template.Must(h.rootTemplate.Parse(string(b)))
+		h.patternToTemplate = map[string]*template.Template{}
 	}
-	if _, err := htmlFiles.ReadFile("html/" + p.template); err != nil {
-		panic(fmt.Sprintf("Page %q references a template %q that does not exist", p.title, p.template))
+	content, err := htmlFiles.ReadFile("html/" + p.template)
+	if err != nil {
+		panic(fmt.Sprintf("Page %s references a template %q that does not exist", p.pattern, p.template))
 	}
-	h.patternToPage[p.pattern] = p
+	t := template.Must(h.rootTemplate.Clone())
+	template.Must(t.Parse(string(content)))
+	h.patternToTemplate[p.pattern] = t
 }
 
-func (h *pageHandler)  ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	page, ok := h.patternToPage[r.URL.Path]
+func (h *pageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	t, ok := h.patternToTemplate[r.URL.Path]
 	if !ok {
 		notFoundHandler(w, r)
 		return
 	}
-	b, _ := htmlFiles.ReadFile("html/" + page.template)
-	writeHtmlPage(w, page.title, template.HTML(b))
+	input := struct {
+		NYCSubway *config2.Config
+	}{h.config.Config("nycsubway")}
+	if err := t.Execute(w, input); err != nil {
+		fmt.Println("Failed to execute template")
+	}
 }
 
 func dataDownloadHandler(w http.ResponseWriter, r *http.Request) {
@@ -108,7 +125,7 @@ func writeHtmlPage(w io.Writer, title string, body template.HTML) {
 	t.Parse(string(b))
 	input := struct {
 		Title string
-		Body template.HTML
+		Body  template.HTML
 	}{title, body}
 	t.Execute(w, input)
 }
