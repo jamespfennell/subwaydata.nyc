@@ -27,7 +27,7 @@ func (d *Day) UnmarshalJSON(data []byte) error {
 }
 
 func (d Day) MarshalJSON() ([]byte, error) {
-	return []byte(d.String()), nil
+	return []byte(fmt.Sprintf(`"%s"`, d.String())), nil
 }
 
 func (d Day) String() string {
@@ -36,7 +36,7 @@ func (d Day) String() string {
 
 type Config struct {
 	Id          string
-	Name string
+	Name        string
 	StartDay    Day       `json:"start_day"`
 	LastUpdated time.Time `json:"last_updated"`
 	Feeds       []struct {
@@ -52,11 +52,11 @@ func (c *Config) LastAvailableDay() AvailableDay {
 }
 
 type AvailableDay struct {
-	Day Day
+	Day         Day
 	LastUpdated time.Time `json:"last_updated"`
-	Sizes struct {
-		Csv int
-		Sql int
+	Sizes       struct {
+		Csv    int
+		Sql    int
 		Gtfsrt int
 	}
 }
@@ -67,7 +67,7 @@ var buildTimeConfigFiles embed.FS
 // TODO: better name
 type Provider struct {
 	configFiles map[string]*Config
-	m sync.RWMutex
+	m           sync.RWMutex
 }
 
 func NewProvider() *Provider {
