@@ -1,0 +1,54 @@
+{{ define "content" }}
+
+    <h2>NYC Subway data</h2>
+
+        <h3>Index</h3>
+    {{ $month := "" }}
+    {{ $year := "" }}
+    {{range $i, $_ := .NYCSubway.AvailableDays}}
+        {{ $a := $.NYCSubway.RecentAvailableDay $i }}
+        {{ if not (eq $year $a.Day.YearString) }}
+            {{ if not (eq $i 0)}}
+                </ul>
+            {{ end }}
+            <h4>{{  $a.Day.YearString }}</h4>
+                <ul class="links">
+        {{ end }}
+        {{ if not (eq $month $a.Day.MonthString) }}
+            <li><a href="#{{ $a.Day.MonthString }}">{{  $a.Day.AsTime.Format "January" }}</a></li>
+        {{ end }}
+        {{ $year = $a.Day.YearString}}
+        {{ $month = $a.Day.MonthString}}
+    {{ end }}
+    </ul>
+
+        <h3>Data</h3>
+    {{ $month = "" }}
+    {{range $i, $_ := .NYCSubway.AvailableDays}}
+        {{ $a := $.NYCSubway.RecentAvailableDay $i }}
+        {{ if not (eq $month $a.Day.MonthString) }}
+            {{ if not (eq $i 0)}}
+            </table>
+            {{ end }}
+                <a id="{{ $a.Day.MonthString }}"></a>
+            <h4>{{ $a.Day.AsTime.Format "January 2006" }}</h4>
+            <table>
+                <tr>
+                    <th>Date</th>
+                    <th colspan="3">Downloads</th>
+                    <th>Last updated</th>
+                </tr>
+        {{ end }}
+        {{ $month = $a.Day.MonthString}}
+        <tr>
+            <td>{{ $a.Day.AsTime.Format "January 02, 2006" }}</td>
+            <td><a href="/data/nycsubway-{{ $a.Day }}-csv.tar.xz">csv ({{ $a.Sizes.Csv }})</a></td>
+            <td><a href="/data/nycsubway-{{ $a.Day }}-sql.tar.xz">sql ({{ $a.Sizes.Sql }})</a></td>
+            <td><a href="/data/nycsubway-{{ $a.Day }}-gtfsrt.tar.xz">gtfsrt ({{ $a.Sizes.Gtfsrt }})</a></td>
+            <td><span class="small">{{ $a.LastUpdated.Format "January 02, 2006"}}</span></td>
+        </tr>
+    {{end}}
+
+    </table>
+
+{{ end }}

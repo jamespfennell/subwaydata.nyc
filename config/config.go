@@ -30,8 +30,38 @@ func (d Day) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf(`"%s"`, d.String())), nil
 }
 
+func (d Day) AsTime() time.Time {
+	return time.Time(d)
+}
+
 func (d Day) String() string {
-	return time.Time(d).Format("2006-01-02")
+	return d.AsTime().Format("2006-01-02")
+}
+
+func (d Day) YearString() string {
+	return d.AsTime().Format("2006")
+}
+
+func (d Day) MonthString() string {
+	return d.AsTime().Format("2006-01")
+}
+
+type Bytes int64
+
+func (b Bytes) String() string {
+	if b < 1000 {
+		return fmt.Sprintf("%db", b)
+	}
+	div, exp := Bytes(1000), Bytes(0)
+	for n := b / 1000; n >= 1000; n /= 1000 {
+		div *= 1000
+		exp++
+	}
+	raw := b/div + 1
+	if raw >= 100 {
+		return fmt.Sprintf("0.%d%cb", raw/100+1, "kmgt"[exp+1])
+	}
+	return fmt.Sprintf("%d%cb", b/div+1, "kmg"[exp])
 }
 
 type Config struct {
@@ -48,16 +78,20 @@ type Config struct {
 }
 
 func (c *Config) LastAvailableDay() AvailableDay {
-	return c.AvailableDays[len(c.AvailableDays)-1]
+	return c.RecentAvailableDay(0)
+}
+
+func (c *Config) RecentAvailableDay(i int) AvailableDay {
+	return c.AvailableDays[len(c.AvailableDays)-i-1]
 }
 
 type AvailableDay struct {
 	Day         Day
 	LastUpdated time.Time `json:"last_updated"`
 	Sizes       struct {
-		Csv    int
-		Sql    int
-		Gtfsrt int
+		Csv    Bytes
+		Sql    Bytes
+		Gtfsrt Bytes
 	}
 }
 

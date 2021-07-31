@@ -15,23 +15,15 @@
     All of the <a href="/">software</a> used (including this website!) is open source and adaptable for other transit systems.
 </p>
 
-<img src="{{ .StaticFiles.Path "/static/1.jpg" }}" alt="West 8th Street station in Coney Island, Brooklyn" class="display-img">
+<img src="{{ .StaticFiles.Path "/static/west-8th-street.jpg" }}" alt="West 8th Street station in Coney Island, Brooklyn" class="display-img">
 <p class="caption">by <a href="https://unsplash.com/@punttim">Tim Gouw</a> via Unsplash</p>
 
-<table>
-    <tr>
-        <th>Data set</th>
-        <th>First day of data</th>
-        <th>Most recent day of data</th>
-        <th>Last updated</th>
-    </tr>
-    <tr>
-        <td>{{ .NYCSubway.Name }}</td>
-        <td>{{ .NYCSubway.StartDay }}</td>
-        <td>{{ .NYCSubway.LastAvailableDay.Day }}</td>
-        <td>{{ len .NYCSubway.AvailableDays }}</td>
-        <td>{{ .NYCSubway.LastUpdated }}</td>
-    </tr>
-</table>
+    <h2>Data set information</h2>
+    <ul>
+        <li>First day of data: {{ .NYCSubway.StartDay.AsTime.Format "January 2, 2006" }}</li>
+        <li>Most recent day of data: {{ .NYCSubway.LastAvailableDay.Day.AsTime.Format "January 2, 2006"  }}</li>
+        <li>Number of days of data: {{ len .NYCSubway.AvailableDays }}</li>
+        <li>Data set last updated: {{ .NYCSubway.LastUpdated.Format "January 2, 2006, at 04:05" }} EST</li>
+    </ul>
 
 {{ end }}

@@ -50,6 +50,7 @@ func main() {
 	templates := html.GetTemplates()
 	http.HandleFunc("/", h.TemplateRootHandler(templates.Home, templates.PageNotFound))
 	http.HandleFunc("/software", h.TemplateHandler(templates.Software))
+	http.HandleFunc("/explore-the-data", h.TemplateHandler(templates.ExploreTheData))
 	http.HandleFunc("/config/nycsubway.json", h.ConfigHandler("nycsubway"))
 	http.HandleFunc("/data/", h.DataHandler())
 	log.Printf("Launching HTTP server on port %d\n", *flagPort)
@@ -71,6 +72,7 @@ func (h handlerFactory) TemplateHandler(t *template.Template) http.HandlerFunc {
 			NYCSubway:   h.config.Config("nycsubway"),
 			StaticFiles: h.staticHandler,
 		}
+		// TODO: handle the status error with a public message?
 		if err := t.Execute(w, input); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			log.Printf("Failed to write templated response: %s\n", err)
