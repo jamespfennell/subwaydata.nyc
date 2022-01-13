@@ -1,6 +1,6 @@
 FROM golang:1.16 AS builder
 
-WORKDIR /transitdata.nyc
+WORKDIR /subwaydata.nyc
 
 COPY go.mod ./
 # COPY go.sum ./

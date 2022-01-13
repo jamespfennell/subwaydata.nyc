@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/jamespfennell/transitdata.nyc/config"
-	"github.com/jamespfennell/transitdata.nyc/website/html"
+	"github.com/jamespfennell/subwaydata.nyc/config"
+	"github.com/jamespfennell/subwaydata.nyc/website/html"
 	"html/template"
 	"io"
 	"io/fs"
@@ -160,7 +160,7 @@ func newStaticProvider(root string, files embed.FS) staticProvider {
 		keyToPath:     map[string]string{},
 		pathToContent: map[string][]byte{},
 	}
-	err := fs.WalkDir(files, ".", func(filePath string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(files, ".", func(filePath string, d fs.DirEntry, _ error) error {
 		if d.IsDir() {
 			return nil
 		}
