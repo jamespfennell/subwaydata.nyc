@@ -49,8 +49,10 @@ func main() {
 	}
 	templates := html.GetTemplates()
 	http.HandleFunc("/", h.TemplateRootHandler(templates.Home, templates.PageNotFound))
-	http.HandleFunc("/software", h.TemplateHandler(templates.Software))
 	http.HandleFunc("/explore-the-data", h.TemplateHandler(templates.ExploreTheData))
+	http.HandleFunc("/programmatic-access", h.TemplateHandler(templates.ProgrammaticAccess))
+	http.HandleFunc("/data-schema", h.TemplateHandler(templates.DataSchema))
+	http.HandleFunc("/how-it-works", h.TemplateHandler(templates.HowItWorks))
 	http.HandleFunc("/config/nycsubway.json", h.ConfigHandler("nycsubway"))
 	http.HandleFunc("/data/", h.DataHandler())
 	log.Printf("Launching HTTP server on port %d\n", *flagPort)

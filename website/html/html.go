@@ -13,10 +13,12 @@ var files embed.FS
 const rootTemplate = "layout.html"
 
 type Templates struct {
-	Home           *template.Template `html:"home.html"`
-	Software       *template.Template `html:"software.html"`
-	ExploreTheData *template.Template `html:"explore-the-data.html"`
-	PageNotFound   *template.Template `html:"404.html"`
+	Home               *template.Template `html:"home.html"`
+	ExploreTheData     *template.Template `html:"explore-the-data.html"`
+	ProgrammaticAccess *template.Template `html:"programmatic-access.html"`
+	HowItWorks         *template.Template `html:"how-it-works.html"`
+	DataSchema         *template.Template `html:"data-schema.html"`
+	PageNotFound       *template.Template `html:"404.html"`
 }
 
 var t Templates
