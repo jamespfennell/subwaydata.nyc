@@ -136,7 +136,7 @@ func (h handlerFactory) DataHandler() http.HandlerFunc {
 		}
 		var d *config.Day
 		// TODO: make this not O(n) by storing available days in a hash map
-		for _, day := range c.AvailableDays {
+		for _, day := range c.ProcessedDays {
 			if t.Equal(time.Time(day.Day)) {
 				d = &day.Day
 				break

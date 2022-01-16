@@ -1,0 +1,8 @@
+# Ignore everything
+*
+
+!go.mod
+!go.sum
+!config/*
+!updater/*
+!website/*

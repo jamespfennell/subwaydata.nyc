@@ -10,7 +10,33 @@ import (
 	"time"
 )
 
+type Config struct {
+	StartDay    Day       `json:"startDay"`
+	LastUpdated time.Time `json:"lastUpdated"`
+	Feeds       []struct {
+		Id       string
+		StartDay Day  `json:"startDay"`
+		EndDay   *Day `json:"endDay"`
+	}
+	ProcessedDays []ProcessedDay `json:"processedDays"`
+}
+
 type Day time.Time
+
+type ProcessedDay struct {
+	Day             Day
+	Feeds           []string
+	Created         time.Time
+	SoftwareVersion int `json:"softwareVersion"`
+	Csv             Artifact
+	Gtfsrt          Artifact
+}
+
+type Artifact struct {
+	Size        int
+	Url         string
+	Md5Checksum string
+}
 
 func (d *Day) UnmarshalJSON(data []byte) error {
 	var s string
@@ -46,53 +72,12 @@ func (d Day) MonthString() string {
 	return d.AsTime().Format("2006-01")
 }
 
-type Bytes int64
-
-func (b Bytes) String() string {
-	if b < 1000 {
-		return fmt.Sprintf("%db", b)
-	}
-	div, exp := Bytes(1000), Bytes(0)
-	for n := b / 1000; n >= 1000; n /= 1000 {
-		div *= 1000
-		exp++
-	}
-	raw := b/div + 1
-	if raw >= 100 {
-		return fmt.Sprintf("0.%d%cb", raw/100+1, "kmgt"[exp+1])
-	}
-	return fmt.Sprintf("%d%cb", b/div+1, "kmg"[exp])
-}
-
-type Config struct {
-	Id          string
-	Name        string
-	StartDay    Day       `json:"start_day"`
-	LastUpdated time.Time `json:"last_updated"`
-	Feeds       []struct {
-		Id       string
-		StartDay Day  `json:"start_day"`
-		EndDay   *Day `json:"end_day"`
-	}
-	AvailableDays []AvailableDay `json:"available_days"`
-}
-
-func (c *Config) LastAvailableDay() AvailableDay {
+func (c *Config) LastAvailableDay() ProcessedDay {
 	return c.RecentAvailableDay(0)
 }
 
-func (c *Config) RecentAvailableDay(i int) AvailableDay {
-	return c.AvailableDays[len(c.AvailableDays)-i-1]
-}
-
-type AvailableDay struct {
-	Day         Day
-	LastUpdated time.Time `json:"last_updated"`
-	Sizes       struct {
-		Csv    Bytes
-		Sql    Bytes
-		Gtfsrt Bytes
-	}
+func (c *Config) RecentAvailableDay(i int) ProcessedDay {
+	return c.ProcessedDays[len(c.ProcessedDays)-i-1]
 }
 
 //go:embed *json

@@ -1,8 +1,5 @@
 {
-  "id": "nycsubway",
-  "name": "New York City Subway",
-  "start_day": "2021-03-15",
-  "last_updated": "2021-04-16T01:23:53Z",
+  "lastUpdated": "2021-04-16T01:23:53Z",
   "feeds": [
     {
       "id": "nycsubway_1234567",
@@ -10,30 +7,22 @@
       "end_day": null
     }
   ],
-  "available_days": [
+  "processedDays": [
     {
       "day": "2021-04-13",
-      "last_updated": "2021-04-16T01:23:53Z",
-      "sizes": {
-        "csv": 243536,
-        "sql": 243536
+      "feeds": ["nycsubway_1234567", "nycsubway_L"],
+      "created": "2021-04-16T01:23:53Z",
+      "softwareVersion": 1,
+      "csv": {
+        "size": 4325,
+        "url": "??",
+        "md5Checksum": ""
+      },
+      "gtfs": {
+        "size": 4352,
+        "url": "",
+        "md5Checksum": ""
       }
-    },
-    {
-      "day": "2021-04-14",
-      "last_updated": "2021-04-16T01:23:53Z"
-    },
-    {
-      "day": "2021-04-15",
-      "last_updated": "2021-04-16T01:23:53Z"
-    },
-    {
-      "day": "2021-04-16",
-      "last_updated": "2021-04-16T01:23:53Z"
-    },
-    {
-      "day": "2021-05-15",
-      "last_updated": "2021-04-16T01:23:53Z"
     }
   ]
 }

@@ -23,6 +23,6 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           tags: jamespfennell/subwaydata.nyc:latest
-          # Only push to Docker Hub if this workflow is a push to master
+          # Only push to Docker Hub if this workflow is a push to main
           push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
 
