@@ -3,12 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
+	"time"
 
 	hconfig "github.com/jamespfennell/hoard/config"
 	"github.com/jamespfennell/subwaydata.nyc/etl/config"
+	"github.com/jamespfennell/subwaydata.nyc/etl/git"
 	"github.com/jamespfennell/subwaydata.nyc/etl/pipeline"
 	"github.com/jamespfennell/subwaydata.nyc/metadata"
 	"github.com/urfave/cli/v2"
@@ -53,6 +53,11 @@ func main() {
 					if err != nil {
 						return err
 					}
+					gitSession, err := newGitSession(ec)
+					if err != nil {
+						return err
+					}
+					defer gitSession.Close()
 					args := c.Args()
 					switch args.Len() {
 					case 0:
@@ -63,6 +68,7 @@ func main() {
 							return err
 						}
 						return pipeline.Run(
+							gitSession,
 							d,
 							[]string{"nycsubway_L"},
 							ec,
@@ -82,17 +88,28 @@ func main() {
 					if err != nil {
 						return err
 					}
+					_ = hc
 					ec, err := getEtlConfig(c)
 					if err != nil {
 						return err
 					}
-					_ = hc
-					_ = ec
-					m, err := getMetadata(ec)
+					gitSession, err := newGitSession(ec)
 					if err != nil {
-						return fmt.Errorf("failed to read metadata: %w", err)
+						return err
 					}
-					d, _ := metadata.ParseDay("2022-01-23")
+					defer gitSession.Close()
+					m, err := gitSession.ReadMetadata()
+					if err != nil {
+						return err
+					}
+
+					loc, err := time.LoadLocation(ec.Timezone)
+					if err != nil {
+						return fmt.Errorf("unable to load timezone %q: %w", ec.Timezone, err)
+					}
+					now := time.Now().In(loc).Add(-5 * time.Hour).Format("2006-01-02")
+					d, _ := metadata.ParseDay(now)
+
 					pendingDays := metadata.CalculatePendingDays(m, d)
 					if len(pendingDays) == 0 {
 						fmt.Println("No days in the backlog")
@@ -100,8 +117,8 @@ func main() {
 					}
 					fmt.Printf("%d days in the backlog:\n", len(pendingDays))
 					for i := 0; i < len(pendingDays); i++ {
-						if i >= 10 {
-							fmt.Printf("...and %d more days\n", len(pendingDays)-10)
+						if i >= 20 {
+							fmt.Printf("...and %d more days\n", len(pendingDays)-20)
 							break
 						}
 						d := pendingDays[len(pendingDays)-i-1]
@@ -146,21 +163,7 @@ func getEtlConfig(c *cli.Context) (*config.Config, error) {
 	return &ec, nil
 }
 
-// TODO: should be using the Git package for this.
-func getMetadata(ec *config.Config) (*metadata.Metadata, error) {
-	url := "https://raw.githubusercontent.com/jamespfennell/subwaydata.nyc/etl-cmd/metadata/nycsubway.json"
-	res, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	b, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, err
-	}
-	var m metadata.Metadata
-	if err := json.Unmarshal(b, &m); err != nil {
-		return nil, err
-	}
-	return &m, nil
+func newGitSession(ec *config.Config) (*git.Session, error) {
+	return git.NewWritableSession(
+		ec.GitUrl, ec.GitUser, ec.GitPassword, ec.GitEmail, ec.GitBranch, ec.MetadataPath)
 }

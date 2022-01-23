@@ -11,20 +11,15 @@ import (
 	"time"
 )
 
-// TODO: get rid of all the camelCase garbage
 type Metadata struct {
-	StartDay      Day            `json:"startDay"`
-	LastUpdated   time.Time      `json:"lastUpdated"`
-	Feeds         []FeedMetadata `json:"feeds"`
-	ProcessedDays []ProcessedDay `json:"processedDays"`
+	Feeds         []FeedMetadata
+	ProcessedDays []ProcessedDay
 }
 
 type FeedMetadata struct {
-	Id string
-
-	// Maybe FirstDay and LastDay
-	StartDay Day  `json:"startDay"`
-	EndDay   *Day `json:"endDay"`
+	Id       string
+	FirstDay Day
+	LastDay  *Day
 }
 
 type Day struct {
@@ -34,20 +29,18 @@ type Day struct {
 }
 
 type ProcessedDay struct {
-	Day             Day       `json:"day"`
-	Feeds           []string  `json:"feeds"`
-	Created         time.Time `json:"created"`
-	SoftwareVersion int       `json:"softwareVersion"`
-	Csv             Artifact  `json:"csv"`
-	Gtfsrt          Artifact  `json:"gtfsrt"`
+	Day             Day
+	Feeds           []string
+	Created         time.Time
+	SoftwareVersion int
+	Csv             Artifact
+	Gtfsrt          Artifact
 }
 
 type Artifact struct {
-	Size int64  `json:"size"`
-	Url  string `json:"url"`
-
-	// TODO: rename checksum
-	Md5Checksum string `json:"md5Checksum"`
+	Size     int64
+	Path     string
+	Checksum string
 }
 
 func ParseDay(s string) (Day, error) {
@@ -167,8 +160,8 @@ func CalculatePendingDays(m *Metadata, lastDay Day) []PendingDay {
 	upperBound := lastDay.Next()
 	firstDay := upperBound
 	for _, feed := range m.Feeds {
-		if feed.StartDay.Before(firstDay) {
-			firstDay = feed.StartDay
+		if feed.FirstDay.Before(firstDay) {
+			firstDay = feed.FirstDay
 		}
 	}
 
@@ -176,8 +169,8 @@ func CalculatePendingDays(m *Metadata, lastDay Day) []PendingDay {
 	for _, feed := range m.Feeds {
 		firstDay := firstDay
 		upperBound := upperBound
-		if feed.EndDay != nil && feed.EndDay.Before(upperBound) {
-			upperBound = feed.EndDay.Next()
+		if feed.LastDay != nil && feed.LastDay.Before(upperBound) {
+			upperBound = feed.LastDay.Next()
 		}
 		for firstDay.Before(upperBound) {
 			dayToRequiredFeeds[firstDay] = append(dayToRequiredFeeds[firstDay], feed.Id)

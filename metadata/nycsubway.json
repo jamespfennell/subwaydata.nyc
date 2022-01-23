@@ -1,31 +1,28 @@
 {
-  "startDay": "0001-01-01",
-  "lastUpdated": "2022-01-17T17:05:08.673895501-05:00",
-  "feeds": [
+  "Feeds": [
     {
-      "Id": "nycsubway_1234567",
-      "startDay": "2021-12-15",
-      "endDay": null
+      "Id": "nycsubway_L",
+      "FirstDay": "2021-12-15",
+      "LastDay": null
     }
   ],
-  "processedDays": [
+  "ProcessedDays": [
     {
-      "day": "2021-04-13",
-      "feeds": [
-        "nycsubway_1234567",
+      "Day": "2022-01-07",
+      "Feeds": [
         "nycsubway_L"
       ],
-      "created": "2021-04-16T01:23:53Z",
-      "softwareVersion": 1,
-      "csv": {
-        "size": 4325,
-        "url": "??",
-        "md5Checksum": ""
+      "Created": "2022-01-23T14:55:16.395062238-05:00",
+      "SoftwareVersion": 1,
+      "Csv": {
+        "Size": 55912,
+        "Path": "2022-01/subwaydata-nyc_2022-01-07_csv_cbe30b6f6c38.tar.xz",
+        "Checksum": "cbe30b6f6c38"
       },
-      "gtfsrt": {
-        "size": 0,
-        "url": "",
-        "md5Checksum": ""
+      "Gtfsrt": {
+        "Size": 2555552,
+        "Path": "2022-01/subwaydata-nyc_2022-01-07_gtfsrt_84469a0ff9e5.tar.xz",
+        "Checksum": "84469a0ff9e5"
       }
     }
   ]

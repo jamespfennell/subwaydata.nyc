@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jamespfennell/subwaydata.nyc/etl/journal"
+	"github.com/jamespfennell/xz"
 )
 
 var trip journal.Trip = journal.Trip{
@@ -78,7 +79,8 @@ func TestAsCsv(t *testing.T) {
 func unTar(b []byte) map[string]string {
 	result := map[string]string{}
 	buf := bytes.NewBuffer(b)
-	tr := tar.NewReader(buf)
+	xr := xz.NewReader(buf)
+	tr := tar.NewReader(xr)
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF {

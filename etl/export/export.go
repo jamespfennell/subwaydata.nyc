@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jamespfennell/subwaydata.nyc/etl/journal"
+	"github.com/jamespfennell/xz"
 )
 
 //go:embed trips.csv.tmpl
@@ -35,7 +36,7 @@ var funcMap = template.FuncMap{
 var tripsCsv *template.Template = template.Must(template.New("trips.csv.tmpl").Funcs(funcMap).Parse(tripsCsvTmpl))
 var stopTimesCsv *template.Template = template.Must(template.New("stop_times.csv.tmpl").Funcs(funcMap).Parse(stopTimesCsvTmpl))
 
-// AsCsv exports the provided trips as a tar archive of csv files.
+// AsCsv exports the provided trips as a tar.xz archive of csv files.
 func AsCsv(trips []journal.Trip, filePrefix string) ([]byte, error) {
 	var tripsB bytes.Buffer
 	err := tripsCsv.Execute(&tripsB, trips)
@@ -49,8 +50,9 @@ func AsCsv(trips []journal.Trip, filePrefix string) ([]byte, error) {
 		return nil, err
 	}
 
-	var tarB bytes.Buffer
-	tw := tar.NewWriter(&tarB)
+	var out bytes.Buffer
+	xw := xz.NewWriter(&out)
+	tw := tar.NewWriter(xw)
 	var files = []struct {
 		Name string
 		Body []byte
@@ -75,5 +77,8 @@ func AsCsv(trips []journal.Trip, filePrefix string) ([]byte, error) {
 	if err := tw.Close(); err != nil {
 		return nil, err
 	}
-	return tarB.Bytes(), nil
+	if err := xw.Close(); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
 }

@@ -2,7 +2,6 @@ package pipeline
 
 import (
 	"archive/tar"
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"fmt"
@@ -27,7 +26,7 @@ import (
 const softwareVersion = 1
 
 // Run runs the subwaydata.nyc ETL pipeline for the provided day.
-func Run(day metadata.Day, feedIDs []string, config *config.Config, hoardConfig *hconfig.Config) error {
+func Run(gitSession *git.Session, day metadata.Day, feedIDs []string, config *config.Config, hoardConfig *hconfig.Config) error {
 	tmpDir, err := os.MkdirTemp("", fmt.Sprintf("subwaydatanyc_%s_*", day))
 	if err != nil {
 		return fmt.Errorf("failed to create temporary working directory: %w", err)
@@ -140,17 +139,17 @@ func Run(day metadata.Day, feedIDs []string, config *config.Config, hoardConfig 
 		Created:         time.Now(),
 		SoftwareVersion: softwareVersion,
 		Csv: metadata.Artifact{
-			Size:        csvFileSize,
-			Url:         target,
-			Md5Checksum: csvSha256,
+			Size:     csvFileSize,
+			Path:     target,
+			Checksum: csvSha256,
 		},
 		Gtfsrt: metadata.Artifact{
-			Size:        gtfsrtFileSize,
-			Url:         gtfsrtTarget,
-			Md5Checksum: gtfsrtSha256,
+			Size:     gtfsrtFileSize,
+			Path:     gtfsrtTarget,
+			Checksum: gtfsrtSha256,
 		},
 	}
-	if err := git.UpdateMetadata(
+	if err := gitSession.UpdateMetadata(
 		func(m *metadata.Metadata) (bool, string) {
 			for i := range m.ProcessedDays {
 				if m.ProcessedDays[i].Day == day {
@@ -166,7 +165,6 @@ func Run(day metadata.Day, feedIDs []string, config *config.Config, hoardConfig 
 			// TODO: sort the processed days in the git module - not responsiblity here
 			return true, fmt.Sprintf("New data for %s", day)
 		},
-		config,
 	); err != nil {
 		return fmt.Errorf("failed to update metadata: %w", err)
 	}
@@ -219,7 +217,7 @@ func calculateSha256(filePath string) (string, error) {
 	if _, err := io.Copy(h, f); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("0x%x", h.Sum(nil))[:12], nil
+	return fmt.Sprintf("%x", h.Sum(nil))[:12], nil
 }
 
 func getFileSize(filePath string) (int64, error) {
@@ -287,18 +285,4 @@ func createGtfsrtExport(start, end time.Time, sourceDir string, feedIDs []string
 		return err
 	}
 	return nil
-}
-
-// TODO: use this for CSV files
-func compress(in []byte) ([]byte, error) {
-	var out bytes.Buffer
-	w := xz.NewWriter(&out)
-	if _, err := w.Write(in); err != nil {
-		_ = w.Close()
-		return nil, err
-	}
-	if err := w.Close(); err != nil {
-		return nil, err
-	}
-	return out.Bytes(), nil
 }

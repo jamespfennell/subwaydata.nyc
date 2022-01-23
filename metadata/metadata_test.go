@@ -1,11 +1,30 @@
 package metadata
 
 import (
+	_ "embed"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"testing"
 	"time"
 )
+
+//go:embed nycsubway.json
+var sampleConfig string
+
+func TestSerializeRoundTrip(t *testing.T) {
+	var c Metadata
+	if err := json.Unmarshal([]byte(sampleConfig), &c); err != nil {
+		t.Fatalf("failed to parse metadata: %s", err)
+	}
+	b, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		t.Fatalf("failed to write metadata: %s", err)
+	}
+	if string(b) != sampleConfig {
+		t.Errorf("re-written metadata doesn't match original. Original\n%s\nRe-Written:\n%s", sampleConfig, string(b))
+	}
+}
 
 func TestCalculatePendingDays(t *testing.T) {
 	jan2 := Day{year: 2022, month: time.January, day: 2}
@@ -26,8 +45,8 @@ func TestCalculatePendingDays(t *testing.T) {
 				Feeds: []FeedMetadata{
 					{
 						Id:       feedID1,
-						StartDay: jan3,
-						EndDay:   &jan6,
+						FirstDay: jan3,
+						LastDay:  &jan6,
 					},
 				},
 				ProcessedDays: []ProcessedDay{
@@ -54,8 +73,8 @@ func TestCalculatePendingDays(t *testing.T) {
 				Feeds: []FeedMetadata{
 					{
 						Id:       feedID1,
-						StartDay: jan3,
-						EndDay:   &jan6,
+						FirstDay: jan3,
+						LastDay:  &jan6,
 					},
 				},
 				ProcessedDays: []ProcessedDay{
@@ -82,8 +101,8 @@ func TestCalculatePendingDays(t *testing.T) {
 				Feeds: []FeedMetadata{
 					{
 						Id:       feedID1,
-						StartDay: jan3,
-						EndDay:   nil,
+						FirstDay: jan3,
+						LastDay:  nil,
 					},
 				},
 				ProcessedDays: []ProcessedDay{
@@ -110,8 +129,8 @@ func TestCalculatePendingDays(t *testing.T) {
 				Feeds: []FeedMetadata{
 					{
 						Id:       feedID1,
-						StartDay: jan3,
-						EndDay:   nil,
+						FirstDay: jan3,
+						LastDay:  nil,
 					},
 				},
 				ProcessedDays: []ProcessedDay{
@@ -146,8 +165,8 @@ func TestCalculatePendingDays(t *testing.T) {
 				Feeds: []FeedMetadata{
 					{
 						Id:       feedID1,
-						StartDay: jan3,
-						EndDay:   nil,
+						FirstDay: jan3,
+						LastDay:  nil,
 					},
 				},
 				ProcessedDays: []ProcessedDay{},
