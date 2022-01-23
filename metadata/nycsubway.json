@@ -1,16 +1,20 @@
 {
-  "lastUpdated": "2021-04-16T01:23:53Z",
+  "startDay": "0001-01-01",
+  "lastUpdated": "2022-01-17T17:05:08.673895501-05:00",
   "feeds": [
     {
-      "id": "nycsubway_1234567",
-      "start_day": "2021-03-14",
-      "end_day": null
+      "Id": "nycsubway_1234567",
+      "startDay": "0001-01-01",
+      "endDay": null
     }
   ],
   "processedDays": [
     {
       "day": "2021-04-13",
-      "feeds": ["nycsubway_1234567", "nycsubway_L"],
+      "feeds": [
+        "nycsubway_1234567",
+        "nycsubway_L"
+      ],
       "created": "2021-04-16T01:23:53Z",
       "softwareVersion": 1,
       "csv": {
@@ -18,8 +22,8 @@
         "url": "??",
         "md5Checksum": ""
       },
-      "gtfs": {
-        "size": 4352,
+      "gtfsrt": {
+        "size": 0,
         "url": "",
         "md5Checksum": ""
       }

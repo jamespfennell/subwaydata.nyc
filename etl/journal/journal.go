@@ -2,12 +2,14 @@ package journal
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
 	"time"
 
-	"github.com/jamespfennell/subwaydata.nyc/updater/gtfsrt"
+	"github.com/jamespfennell/subwaydata.nyc/etl/gtfsrt"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -49,7 +51,55 @@ type GtfrtSource interface {
 	Next() *gtfsrt.FeedMessage
 }
 
-// TODO: start time and end time
+type DirectoryGtfsrtSource struct {
+	baseDir   string
+	fileNames []string
+	startLen  int
+	t         time.Time
+}
+
+func NewDirectoryGtfsrtSource(baseDir string) (*DirectoryGtfsrtSource, error) {
+	files, err := os.ReadDir(baseDir)
+	if err != nil {
+		return nil, err
+	}
+	source := &DirectoryGtfsrtSource{
+		baseDir: baseDir,
+		t:       time.Now(),
+	}
+	for _, file := range files {
+		source.fileNames = append(source.fileNames, file.Name())
+	}
+	source.startLen = len(source.fileNames)
+	sort.Strings(source.fileNames)
+	return source, nil
+}
+
+func (s *DirectoryGtfsrtSource) Next() *gtfsrt.FeedMessage {
+	for {
+		if len(s.fileNames) == 0 {
+			return nil
+		}
+		filePath := filepath.Join(s.baseDir, s.fileNames[0])
+		s.fileNames = s.fileNames[1:]
+		b, err := os.ReadFile(filePath)
+		if err != nil {
+			fmt.Printf("Failed to read %s: %s\n", filePath, err)
+			continue
+		}
+		feedMessage := &gtfsrt.FeedMessage{}
+		if err := proto.Unmarshal(b, feedMessage); err != nil {
+			fmt.Printf("Failed to parse %s as a GTFS Realtime message: %s\n", filePath, err)
+			continue
+		}
+		if time.Since(s.t) >= time.Second {
+			fmt.Printf("Processed %d/%d files\n", s.startLen-len(s.fileNames), s.startLen)
+			s.t = time.Now()
+		}
+		return feedMessage
+	}
+}
+
 func BuildJournal(source GtfrtSource, startTime, endTime time.Time) *Journal {
 	trips := map[string]*Trip{}
 	i := 0
@@ -63,7 +113,6 @@ func BuildJournal(source GtfrtSource, startTime, endTime time.Time) *Journal {
 				trips[tripUID] = &trip
 			}
 		}
-		// fmt.Printf("Processed %d\n", i)
 		i++
 	}
 	var tripIDs []string

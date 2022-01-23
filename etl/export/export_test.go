@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jamespfennell/subwaydata.nyc/updater/journal"
+	"github.com/jamespfennell/subwaydata.nyc/etl/journal"
 )
 
 var trip journal.Trip = journal.Trip{

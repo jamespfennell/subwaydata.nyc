@@ -1,0 +1,15 @@
+{
+    "GitUrl": "github.com/jamespfennell/subwaydata.nyc.git",
+    "GitUser": "subwaydatanyc-bot",
+    "GitEmail": "subwaydata.nyc@jpfennell.com",
+    "GitPassword": "",
+    "GitBranch": "etl-cmd",
+    "MetadataPath": "metadata/nycsubway.json",
+    "Timezone": "America/New_York",
+    "BucketUrl": "nyc3.digitaloceanspaces.com",
+    "BucketAccessKey": "",
+    "BucketSecretKey": "",
+    "BucketName": "space2.transitdata",
+    "BucketPrefix": "subwaydata-nyc",
+    "RemotePrefix": "subwaydata-nyc_"
+}

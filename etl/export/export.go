@@ -8,7 +8,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/jamespfennell/subwaydata.nyc/updater/journal"
+	"github.com/jamespfennell/subwaydata.nyc/etl/journal"
 )
 
 //go:embed trips.csv.tmpl

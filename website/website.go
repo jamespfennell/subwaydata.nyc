@@ -7,8 +7,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/jamespfennell/subwaydata.nyc/config"
-	"github.com/jamespfennell/subwaydata.nyc/website/html"
 	"html/template"
 	"io"
 	"io/fs"
@@ -17,6 +15,9 @@ import (
 	"path"
 	"regexp"
 	"time"
+
+	"github.com/jamespfennell/subwaydata.nyc/metadata"
+	"github.com/jamespfennell/subwaydata.nyc/website/html"
 )
 
 //go:embed static/*
@@ -43,7 +44,7 @@ func main() {
 		panic(fmt.Sprintf("Failed to load EST location: %s", err))
 	}
 	h := handlerFactory{
-		config:        config.NewProvider(),
+		config:        metadata.NewProvider(),
 		staticHandler: static,
 		estLocation:   location,
 	}
@@ -54,13 +55,13 @@ func main() {
 	http.HandleFunc("/data-schema", h.TemplateHandler(templates.DataSchema))
 	http.HandleFunc("/how-it-works", h.TemplateHandler(templates.HowItWorks))
 	http.HandleFunc("/config/nycsubway.json", h.ConfigHandler("nycsubway"))
-	http.HandleFunc("/data/", h.DataHandler())
+	// http.HandleFunc("/data/", h.DataHandler())
 	log.Printf("Launching HTTP server on port %d\n", *flagPort)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *flagPort), nil))
 }
 
 type handlerFactory struct {
-	config        *config.Provider
+	config        *metadata.Provider
 	staticHandler staticProvider
 	estLocation   *time.Location
 }
@@ -68,7 +69,7 @@ type handlerFactory struct {
 func (h handlerFactory) TemplateHandler(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		input := struct {
-			NYCSubway   *config.Config
+			NYCSubway   *metadata.Metadata
 			StaticFiles staticProvider
 		}{
 			NYCSubway:   h.config.Config("nycsubway"),
@@ -114,6 +115,7 @@ func (h handlerFactory) ConfigHandler(id string) http.HandlerFunc {
 	}
 }
 
+/*
 func (h handlerFactory) DataHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		match := dataDownloadPathRegex.FindStringSubmatch(r.URL.Path)
@@ -134,7 +136,7 @@ func (h handlerFactory) DataHandler() http.HandlerFunc {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		var d *config.Day
+		var d *metadata.Day
 		// TODO: make this not O(n) by storing available days in a hash map
 		for _, day := range c.ProcessedDays {
 			if t.Equal(time.Time(day.Day)) {
@@ -151,6 +153,7 @@ func (h handlerFactory) DataHandler() http.HandlerFunc {
 		http.Redirect(w, r, "https://realtimerail.nyc", http.StatusSeeOther)
 	}
 }
+*/
 
 type staticProvider struct {
 	keyToPath     map[string]string

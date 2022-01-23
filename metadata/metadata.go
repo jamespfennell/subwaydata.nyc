@@ -1,4 +1,4 @@
-package config
+package metadata
 
 import (
 	"embed"
@@ -10,32 +10,51 @@ import (
 	"time"
 )
 
-type Config struct {
+// TODO: get rid of all the camelCase garbage
+type Metadata struct {
 	StartDay    Day       `json:"startDay"`
 	LastUpdated time.Time `json:"lastUpdated"`
 	Feeds       []struct {
 		Id       string
 		StartDay Day  `json:"startDay"`
 		EndDay   *Day `json:"endDay"`
-	}
+	} `json:"feeds"`
 	ProcessedDays []ProcessedDay `json:"processedDays"`
 }
 
-type Day time.Time
+type Day struct {
+	year  int
+	month time.Month
+	day   int
+}
 
 type ProcessedDay struct {
-	Day             Day
-	Feeds           []string
-	Created         time.Time
-	SoftwareVersion int `json:"softwareVersion"`
-	Csv             Artifact
-	Gtfsrt          Artifact
+	Day             Day       `json:"day"`
+	Feeds           []string  `json:"feeds"`
+	Created         time.Time `json:"created"`
+	SoftwareVersion int       `json:"softwareVersion"`
+	Csv             Artifact  `json:"csv"`
+	Gtfsrt          Artifact  `json:"gtfsrt"`
 }
 
 type Artifact struct {
-	Size        int
-	Url         string
-	Md5Checksum string
+	Size int64  `json:"size"`
+	Url  string `json:"url"`
+
+	// TODO: rename checksum
+	Md5Checksum string `json:"md5Checksum"`
+}
+
+func ParseDay(s string) (Day, error) {
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return Day{}, fmt.Errorf("day %q not in the form YYYY-MM-DD: %w", s, err)
+	}
+	return Day{
+		year:  t.Year(),
+		month: t.Month(),
+		day:   t.Day(),
+	}, nil
 }
 
 func (d *Day) UnmarshalJSON(data []byte) error {
@@ -43,12 +62,11 @@ func (d *Day) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err
 	}
-	location, _ := time.LoadLocation("EST")
-	t, err := time.ParseInLocation("2006-01-02", s, location)
+	dParsed, err := ParseDay(s)
 	if err != nil {
-		return fmt.Errorf("day %q not in the form YYYY-MM-DD: %w", s, err)
+		return err
 	}
-	*d = Day(t)
+	*d = dParsed
 	return nil
 }
 
@@ -56,27 +74,33 @@ func (d Day) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf(`"%s"`, d.String())), nil
 }
 
-func (d Day) AsTime() time.Time {
-	return time.Time(d)
-}
-
 func (d Day) String() string {
-	return d.AsTime().Format("2006-01-02")
+	return fmt.Sprintf("%04d-%02d-%02d", d.year, d.month, d.day)
 }
 
 func (d Day) YearString() string {
-	return d.AsTime().Format("2006")
+	return fmt.Sprintf("%04d", d.year)
 }
 
 func (d Day) MonthString() string {
-	return d.AsTime().Format("2006-01")
+	return fmt.Sprintf("%04d-%02d", d.year, d.month)
 }
 
-func (c *Config) LastAvailableDay() ProcessedDay {
+func (d Day) Start(loc *time.Location) time.Time {
+	return time.Date(d.year, d.month, d.day, 0, 0, 0, 0, loc)
+}
+
+func (d Day) End(loc *time.Location) time.Time {
+	return time.Date(d.year, d.month, d.day+1, 0, 0, 0, 0, loc)
+}
+
+// TODO:remove
+func (c *Metadata) LastAvailableDay() ProcessedDay {
 	return c.RecentAvailableDay(0)
 }
 
-func (c *Config) RecentAvailableDay(i int) ProcessedDay {
+// TODO:remove
+func (c *Metadata) RecentAvailableDay(i int) ProcessedDay {
 	return c.ProcessedDays[len(c.ProcessedDays)-i-1]
 }
 
@@ -85,12 +109,12 @@ var buildTimeConfigFiles embed.FS
 
 // TODO: better name
 type Provider struct {
-	configFiles map[string]*Config
+	configFiles map[string]*Metadata
 	m           sync.RWMutex
 }
 
 func NewProvider() *Provider {
-	p := Provider{configFiles: map[string]*Config{}}
+	p := Provider{configFiles: map[string]*Metadata{}}
 	files, err := buildTimeConfigFiles.ReadDir(".")
 	if err != nil {
 		panic(fmt.Sprintf("Failed to read the build time config files: %s", err))
@@ -107,7 +131,7 @@ func NewProvider() *Provider {
 		if err != nil {
 			panic(fmt.Sprintf("Failed to read build time config file %q: %s", file.Name(), err))
 		}
-		var c Config
+		var c Metadata
 		if err := json.Unmarshal(b, &c); err != nil {
 			panic(fmt.Sprintf("Failed to parse build time config file %q: %s", file.Name(), err))
 		}
@@ -118,7 +142,7 @@ func NewProvider() *Provider {
 	return &p
 }
 
-func (p *Provider) Config(id string) *Config {
+func (p *Provider) Config(id string) *Metadata {
 	p.m.RLock()
 	defer p.m.RUnlock()
 	return p.configFiles[id]
