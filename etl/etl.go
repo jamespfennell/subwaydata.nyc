@@ -1,25 +1,21 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
-	"time"
 
 	hconfig "github.com/jamespfennell/hoard/config"
 	"github.com/jamespfennell/subwaydata.nyc/etl/config"
-	"github.com/jamespfennell/subwaydata.nyc/etl/export"
-	"github.com/jamespfennell/subwaydata.nyc/etl/journal"
 	"github.com/jamespfennell/subwaydata.nyc/etl/pipeline"
 	"github.com/jamespfennell/subwaydata.nyc/metadata"
-	"github.com/jamespfennell/xz"
 	"github.com/urfave/cli/v2"
 )
 
 const hoardConfig = "hoard-config"
 const etlConfig = "etl-config"
-const day = "day"
 
 const descriptionMain = `
 ETL pipeline for subwaydata.nyc
@@ -42,14 +38,12 @@ func main() {
 		},
 		Commands: []*cli.Command{
 			{
-				Name:  "run",
-				Usage: "run one iteration of the ETL pipeline",
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:  day,
-						Usage: "run the pipeline for the provided day (YYYY-MM-DD) only",
-					},
-				},
+				// periodic 01:00:00-04:00:00 05:00:00-06:30:00 - run the backlog process during the day
+				// backlog --limit N --timeout T --list-only
+				Name:        "run",
+				Usage:       "run the ETL pipeline for a specific day",
+				UsageText:   "etl run YYYY-MM-DD",
+				Description: "Runs the pipeline for the specified day (YYYY-MM-DD).",
 				Action: func(c *cli.Context) error {
 					hc, err := getHoardConfig(c)
 					if err != nil {
@@ -59,10 +53,14 @@ func main() {
 					if err != nil {
 						return err
 					}
-					if c.IsSet(day) {
-						d, err := metadata.ParseDay(c.String(day))
+					args := c.Args()
+					switch args.Len() {
+					case 0:
+						return fmt.Errorf("no day provided")
+					case 1:
+						d, err := metadata.ParseDay(args.Get(0))
 						if err != nil {
-							return fmt.Errorf("failed to read day flag: %w", err)
+							return err
 						}
 						return pipeline.Run(
 							d,
@@ -70,10 +68,46 @@ func main() {
 							ec,
 							hc,
 						)
+					default:
+						return fmt.Errorf("too many command line arguments passed")
 					}
-					_ = ec
+				},
+			},
+			{
+				Name:        "backlog",
+				Usage:       "run the ETL pipeline for all days that are not up-to-date",
+				Description: "Runs the pipeline for days that are not up to date.",
+				Action: func(c *cli.Context) error {
+					hc, err := getHoardConfig(c)
+					if err != nil {
+						return err
+					}
+					ec, err := getEtlConfig(c)
+					if err != nil {
+						return err
+					}
 					_ = hc
-					return fmt.Errorf("not implemented")
+					_ = ec
+					m, err := getMetadata(ec)
+					if err != nil {
+						return fmt.Errorf("failed to read metadata: %w", err)
+					}
+					d, _ := metadata.ParseDay("2022-01-23")
+					pendingDays := metadata.CalculatePendingDays(m, d)
+					if len(pendingDays) == 0 {
+						fmt.Println("No days in the backlog")
+						return nil
+					}
+					fmt.Printf("%d days in the backlog:\n", len(pendingDays))
+					for i := 0; i < len(pendingDays); i++ {
+						if i >= 10 {
+							fmt.Printf("...and %d more days\n", len(pendingDays)-10)
+							break
+						}
+						d := pendingDays[len(pendingDays)-i-1]
+						fmt.Printf("- %s (feeds: %s)\n", d.Day, d.FeedIDs)
+					}
+					return nil
 				},
 			},
 		},
@@ -112,50 +146,21 @@ func getEtlConfig(c *cli.Context) (*config.Config, error) {
 	return &ec, nil
 }
 
-var americaNewYorkTimezone *time.Location
-
-func init() {
-	var err error
-	americaNewYorkTimezone, err = time.LoadLocation("America/New_York")
+// TODO: should be using the Git package for this.
+func getMetadata(ec *config.Config) (*metadata.Metadata, error) {
+	url := "https://raw.githubusercontent.com/jamespfennell/subwaydata.nyc/etl-cmd/metadata/nycsubway.json"
+	res, err := http.Get(url)
 	if err != nil {
-		panic(fmt.Errorf("failed to load America/New_York timezone: %w", err))
-	}
-}
-
-func run() error {
-	source, err := journal.NewDirectoryGtfsrtSource("../tmp/data/nycsubway_L/")
-	if err != nil {
-		return err
-	}
-	j := journal.BuildJournal(
-		source,
-		time.Date(2021, time.September, 16, 0, 0, 0, 0, americaNewYorkTimezone),
-		time.Date(2021, time.September, 17, 0, 0, 0, 0, americaNewYorkTimezone),
-	)
-	fmt.Printf("%d trips", len(j.Trips))
-	csvExport, err := export.AsCsv(j.Trips, "2021-09-16_")
-	if err != nil {
-		return err
-	}
-	csvExportXz, err := compress(csvExport)
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile("../tmp/2021-09-16_csv.tar.xz", csvExportXz, 0600); err != nil {
-		return err
-	}
-	return nil
-}
-
-func compress(in []byte) ([]byte, error) {
-	var out bytes.Buffer
-	w := xz.NewWriter(&out)
-	if _, err := w.Write(in); err != nil {
-		_ = w.Close()
 		return nil, err
 	}
-	if err := w.Close(); err != nil {
+	defer res.Body.Close()
+	b, err := io.ReadAll(res.Body)
+	if err != nil {
 		return nil, err
 	}
-	return out.Bytes(), nil
+	var m metadata.Metadata
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil, err
+	}
+	return &m, nil
 }

@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"archive/tar"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"fmt"
@@ -106,7 +107,6 @@ func Run(day metadata.Day, feedIDs []string, config *config.Config, hoardConfig 
 	}
 
 	// Stage five: upload local files to object storage.
-	_ = tmpDir
 	csvSha256, err := calculateSha256(csvTmpFile)
 	if err != nil {
 		return fmt.Errorf("failed to calculate SHA-256 hash of CSV upload: %w", err)
@@ -287,4 +287,18 @@ func createGtfsrtExport(start, end time.Time, sourceDir string, feedIDs []string
 		return err
 	}
 	return nil
+}
+
+// TODO: use this for CSV files
+func compress(in []byte) ([]byte, error) {
+	var out bytes.Buffer
+	w := xz.NewWriter(&out)
+	if _, err := w.Write(in); err != nil {
+		_ = w.Close()
+		return nil, err
+	}
+	if err := w.Close(); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
 }

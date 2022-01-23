@@ -1,4 +1,5 @@
 
+- Get the metadata from a checked out Git repo
 - Implement running last N days using the metadata and what needs doing
 - Update metadata format following TODOs in there
 - Migrate metadata to its own Git repo

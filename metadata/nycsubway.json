@@ -4,7 +4,7 @@
   "feeds": [
     {
       "Id": "nycsubway_1234567",
-      "startDay": "0001-01-01",
+      "startDay": "2021-12-15",
       "endDay": null
     }
   ],
