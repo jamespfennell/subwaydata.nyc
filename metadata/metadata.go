@@ -5,21 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"sort"
 	"strings"
 	"sync"
 	"time"
 )
 
 type Metadata struct {
-	Feeds         []FeedMetadata
 	ProcessedDays []ProcessedDay
-}
-
-type FeedMetadata struct {
-	Id       string
-	FirstDay Day
-	LastDay  *Day
 }
 
 type Day struct {
@@ -41,6 +33,14 @@ type Artifact struct {
 	Size     int64
 	Path     string
 	Checksum string
+}
+
+func NewDay(year int, month time.Month, day int) Day {
+	d, err := ParseDay(Day{year: year, month: month, day: day}.String())
+	if err != nil {
+		panic(err)
+	}
+	return d
 }
 
 func ParseDay(s string) (Day, error) {
@@ -149,84 +149,4 @@ func (p *Provider) Config(id string) *Metadata {
 	p.m.RLock()
 	defer p.m.RUnlock()
 	return p.configFiles[id]
-}
-
-type PendingDay struct {
-	Day     Day
-	FeedIDs []string
-}
-
-func CalculatePendingDays(m *Metadata, lastDay Day) []PendingDay {
-	upperBound := lastDay.Next()
-	firstDay := upperBound
-	for _, feed := range m.Feeds {
-		if feed.FirstDay.Before(firstDay) {
-			firstDay = feed.FirstDay
-		}
-	}
-
-	dayToRequiredFeeds := map[Day][]string{}
-	for _, feed := range m.Feeds {
-		firstDay := firstDay
-		upperBound := upperBound
-		if feed.LastDay != nil && feed.LastDay.Before(upperBound) {
-			upperBound = feed.LastDay.Next()
-		}
-		for firstDay.Before(upperBound) {
-			dayToRequiredFeeds[firstDay] = append(dayToRequiredFeeds[firstDay], feed.Id)
-			firstDay = firstDay.Next()
-		}
-	}
-
-	dayToProcessedFeeds := map[Day][]string{}
-	for _, processedDay := range m.ProcessedDays {
-		dayToProcessedFeeds[processedDay.Day] = processedDay.Feeds
-	}
-
-	result := []PendingDay{}
-	for day, requiredFeeds := range dayToRequiredFeeds {
-		requiredFeeds := requiredFeeds
-		processedFeeds := dayToProcessedFeeds[day]
-		if !contains(processedFeeds, requiredFeeds) {
-			result = append(result, PendingDay{
-				Day:     day,
-				FeedIDs: requiredFeeds,
-			})
-		}
-	}
-
-	sortProcessedDays(result)
-	return result
-}
-
-// contains checks if every element of b is contained in a
-func contains(a, b []string) bool {
-	aSet := map[string]bool{}
-	for _, aElem := range a {
-		aSet[aElem] = true
-	}
-	for _, bElem := range b {
-		if !aSet[bElem] {
-			return false
-		}
-	}
-	return true
-}
-
-func sortProcessedDays(in []PendingDay) {
-	sort.Sort(byDay(in))
-}
-
-type byDay []PendingDay
-
-func (b byDay) Len() int {
-	return len(b)
-}
-
-func (b byDay) Swap(i, j int) {
-	b[i], b[j] = b[j], b[i]
-}
-
-func (b byDay) Less(i, j int) bool {
-	return b[i].Day.Before(b[j].Day)
 }

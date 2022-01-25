@@ -8,8 +8,8 @@ import (
 
 	hconfig "github.com/jamespfennell/hoard/config"
 	"github.com/jamespfennell/subwaydata.nyc/etl/config"
-	"github.com/jamespfennell/subwaydata.nyc/etl/git"
 	"github.com/jamespfennell/subwaydata.nyc/etl/pipeline"
+	"github.com/jamespfennell/subwaydata.nyc/etl/storage"
 	"github.com/jamespfennell/subwaydata.nyc/metadata"
 	"github.com/urfave/cli/v2"
 )
@@ -45,19 +45,10 @@ func main() {
 				UsageText:   "etl run YYYY-MM-DD",
 				Description: "Runs the pipeline for the specified day (YYYY-MM-DD).",
 				Action: func(c *cli.Context) error {
-					hc, err := getHoardConfig(c)
+					session, err := newSession(c)
 					if err != nil {
 						return err
 					}
-					ec, err := getEtlConfig(c)
-					if err != nil {
-						return err
-					}
-					gitSession, err := newGitSession(ec)
-					if err != nil {
-						return err
-					}
-					defer gitSession.Close()
 					args := c.Args()
 					switch args.Len() {
 					case 0:
@@ -68,11 +59,11 @@ func main() {
 							return err
 						}
 						return pipeline.Run(
-							gitSession,
 							d,
 							[]string{"nycsubway_L"},
-							ec,
-							hc,
+							session.ec,
+							session.hc,
+							session.sc,
 						)
 					default:
 						return fmt.Errorf("too many command line arguments passed")
@@ -84,23 +75,14 @@ func main() {
 				Usage:       "run the ETL pipeline for all days that are not up-to-date",
 				Description: "Runs the pipeline for days that are not up to date.",
 				Action: func(c *cli.Context) error {
-					hc, err := getHoardConfig(c)
+					session, err := newSession(c)
 					if err != nil {
 						return err
 					}
-					_ = hc
-					ec, err := getEtlConfig(c)
+					ec := session.ec
+					m, err := session.sc.GetMetadata()
 					if err != nil {
-						return err
-					}
-					gitSession, err := newGitSession(ec)
-					if err != nil {
-						return err
-					}
-					defer gitSession.Close()
-					m, err := gitSession.ReadMetadata()
-					if err != nil {
-						return err
+						return fmt.Errorf("failed to obtain metadata: %w", err)
 					}
 
 					loc, err := time.LoadLocation(ec.Timezone)
@@ -110,7 +92,7 @@ func main() {
 					now := time.Now().In(loc).Add(-5 * time.Hour).Format("2006-01-02")
 					d, _ := metadata.ParseDay(now)
 
-					pendingDays := metadata.CalculatePendingDays(m, d)
+					pendingDays := config.CalculatePendingDays(ec.Feeds, m.ProcessedDays, d)
 					if len(pendingDays) == 0 {
 						fmt.Println("No days in the backlog")
 						return nil
@@ -135,7 +117,13 @@ func main() {
 	}
 }
 
-func getHoardConfig(c *cli.Context) (*hconfig.Config, error) {
+type session struct {
+	ec *config.Config
+	hc *hconfig.Config
+	sc *storage.Client
+}
+
+func newSession(c *cli.Context) (*session, error) {
 	if !c.IsSet(hoardConfig) {
 		return nil, fmt.Errorf("a Hoard config must be provided")
 	}
@@ -144,15 +132,16 @@ func getHoardConfig(c *cli.Context) (*hconfig.Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the Hoard config file from disk: %w", err)
 	}
-	return hconfig.NewConfig(b)
-}
+	hc, err := hconfig.NewConfig(b)
+	if err != nil {
+		return nil, err
+	}
 
-func getEtlConfig(c *cli.Context) (*config.Config, error) {
 	if !c.IsSet(etlConfig) {
 		return nil, fmt.Errorf("an ETL config must be provided")
 	}
-	path := c.String(etlConfig)
-	b, err := os.ReadFile(path)
+	path = c.String(etlConfig)
+	b, err = os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the ETL config file from disk: %w", err)
 	}
@@ -160,10 +149,14 @@ func getEtlConfig(c *cli.Context) (*config.Config, error) {
 	if err := json.Unmarshal(b, &ec); err != nil {
 		return nil, fmt.Errorf("failed to parse the ETL config file: %w", err)
 	}
-	return &ec, nil
-}
 
-func newGitSession(ec *config.Config) (*git.Session, error) {
-	return git.NewWritableSession(
-		ec.GitUrl, ec.GitUser, ec.GitPassword, ec.GitEmail, ec.GitBranch, ec.MetadataPath)
+	sc, err := storage.NewClient(&ec)
+	if err != nil {
+		return nil, err
+	}
+	return &session{
+		ec: &ec,
+		hc: hc,
+		sc: sc,
+	}, nil
 }

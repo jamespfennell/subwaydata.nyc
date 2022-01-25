@@ -12,7 +12,7 @@ COPY . ./
 RUN go build -o /usr/bin/website website/website.go
 RUN go build -o /usr/bin/etl etl/etl.go
 
-RUN go test ./etl/git
+RUN go test ./...
 
 # We use this buildpack image because it already has SSL certificates installed
 FROM buildpack-deps:buster-curl

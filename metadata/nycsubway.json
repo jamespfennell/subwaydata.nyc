@@ -1,11 +1,4 @@
 {
-  "Feeds": [
-    {
-      "Id": "nycsubway_L",
-      "FirstDay": "2021-12-15",
-      "LastDay": null
-    }
-  ],
   "ProcessedDays": [
     {
       "Day": "2022-01-07",
