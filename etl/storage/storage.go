@@ -6,46 +6,52 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"path/filepath"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/jamespfennell/subwaydata.nyc/etl/config"
 	"github.com/jamespfennell/subwaydata.nyc/metadata"
-	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 type Client struct {
 	ec *config.Config
-	sc *minio.Client
+	sc *s3.S3
 }
 
 func NewClient(ec *config.Config) (*Client, error) {
-	sc, err := minio.New(ec.BucketUrl, &minio.Options{
-		Creds:  credentials.NewStaticV4(ec.BucketAccessKey, ec.BucketSecretKey, ""),
-		Secure: true,
-	})
+	s3Config := &aws.Config{
+		Credentials: credentials.NewStaticCredentials(ec.BucketAccessKey, ec.BucketSecretKey, ""),
+		Endpoint:    aws.String(ec.BucketUrl),
+		Region:      aws.String("us-east-1"),
+	}
+
+	newSession, err := session.NewSession(s3Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize object storage client: %w", err)
 	}
-	return &Client{ec: ec, sc: sc}, nil
+	return &Client{ec: ec, sc: s3.New(newSession)}, nil
 }
 
 func (c *Client) Write(b []byte, remotePath string) error {
 	// TODO: accept a context in the function
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().UTC().Add(30*time.Second))
 	defer cancel()
-	if _, err := c.sc.PutObject(
-		ctx,
-		c.ec.BucketName,
-		filepath.Join(c.ec.BucketPrefix, remotePath),
-		bytes.NewReader(b),
-		int64(len(b)),
-		minio.PutObjectOptions{
-			PartSize: 1024 * 1024 * 30, // TODO: good choice here?
-		},
-	); err != nil {
+	object := s3.PutObjectInput{
+		Bucket: aws.String(c.ec.BucketName),
+		Key:    aws.String(filepath.Join(c.ec.BucketPrefix, remotePath)),
+		Body:   bytes.NewReader(b),
+		ACL:    aws.String("public-read"),
+		//Metadata: map[string]*string{
+		//"x-amz-meta-my-key": aws.String("your-value"), //required
+		//},
+	}
+	_, err := c.sc.PutObjectWithContext(ctx, &object)
+	if err != nil {
 		return fmt.Errorf("failed to copy bytes to object storage: %w", err)
 	}
 	return nil
@@ -55,23 +61,20 @@ func (c *Client) GetMetadata() (*metadata.Metadata, error) {
 	// TODO: accept a context in the function
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().UTC().Add(30*time.Second))
 	defer cancel()
-	o, err := c.sc.GetObject(
-		ctx,
-		c.ec.BucketName,
-		filepath.Join(c.ec.BucketPrefix, c.ec.MetadataPath),
-		minio.GetObjectOptions{},
-	)
+	o, err := c.sc.GetObjectWithContext(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(c.ec.BucketName),
+		Key:    aws.String(filepath.Join(c.ec.BucketPrefix, c.ec.MetadataPath)),
+	})
 	if err != nil {
-		return nil, err
-	}
-	defer o.Close()
-	b, err := io.ReadAll(o)
-	if err != nil {
-		if r, ok := err.(minio.ErrorResponse); ok {
-			if r.StatusCode == http.StatusNotFound {
+		if a, ok := err.(awserr.Error); ok {
+			if a.Code() == s3.ErrCodeNoSuchKey {
 				return &metadata.Metadata{}, nil
 			}
 		}
+	}
+	defer o.Body.Close()
+	b, err := io.ReadAll(o.Body)
+	if err != nil {
 		return nil, err
 	}
 	var m metadata.Metadata
