@@ -5,7 +5,149 @@ import (
 	"fmt"
 	"html/template"
 	"reflect"
+	"strings"
+	"time"
+
+	"github.com/jamespfennell/subwaydata.nyc/metadata"
+	"github.com/jamespfennell/subwaydata.nyc/website/static"
 )
+
+const dataBaseUrl = "https://data.subwaydata.nyc"
+
+func Home(m *metadata.Metadata) string {
+	var firstDay metadata.Day
+	var mostRecentDay metadata.Day
+	var lastUpdated time.Time
+	for i, processedDay := range m.ProcessedDays {
+		if i == 0 || lastUpdated.Before(processedDay.Created) {
+			lastUpdated = processedDay.Created
+		}
+		if i == 0 || processedDay.Day.Before(firstDay) {
+			firstDay = processedDay.Day
+		}
+		if i == 0 || mostRecentDay.Before(processedDay.Day) {
+			mostRecentDay = processedDay.Day
+		}
+	}
+	input := struct {
+		FirstDay      string
+		MostRecentDay string
+		NumDays       int
+		LastUpdated   string
+		StaticFiles   static.Files
+	}{
+		FirstDay:      firstDay.Format("January 2, 2006"),
+		MostRecentDay: mostRecentDay.Format("January 2, 2006"),
+		NumDays:       len(m.ProcessedDays),
+		LastUpdated:   lastUpdated.Format("January 2, 2006 at 15:04"),
+		StaticFiles:   static.Get(),
+	}
+	var s strings.Builder
+	if err := t.Home.Execute(&s, input); err != nil {
+		panic(err)
+	}
+	return s.String()
+}
+
+type year struct {
+	Title  string
+	Months []month
+}
+
+type month struct {
+	Title string
+	Name string
+	Days  []dayData
+}
+
+type dayData struct {
+	Title      string
+	CsvUrl     string
+	CsvSize    string
+	GtfsrtUrl  string
+	GtfsrtSize string
+	Updated    string
+}
+
+func ExploreTheData(m *metadata.Metadata) string {
+	var years []*year
+	for _, p := range m.ProcessedDays {
+		p := p
+		if len(years) == 0 || years[len(years)-1].Title != p.Day.Format("2006") {
+			years = append(years, &year{
+				Title: p.Day.Format("2006"),
+			})
+		}
+		year := years[len(years)-1]
+		j := len(year.Months) - 1
+		if len(year.Months) == 0 || year.Months[j].Title != p.Day.Format("January 2006") {
+			year.Months = append(year.Months, month{
+				Title: p.Day.Format("January 2006"),
+				Name: p.Day.Format("January"),
+			})
+			j += 1
+		}
+		year.Months[j].Days = append(year.Months[j].Days, dayData{
+			Title:      p.Day.Format("January 02, 2006"),
+			CsvUrl:     fmt.Sprintf("%s/%s", dataBaseUrl, p.Csv.Path),
+			CsvSize:    formatBytes(p.Csv.Size),
+			GtfsrtUrl:  fmt.Sprintf("%s/%s", dataBaseUrl, p.Gtfsrt.Path),
+			GtfsrtSize: formatBytes(p.Gtfsrt.Size),
+			Updated:    p.Created.Format("January 02, 2006"),
+		})
+	}
+	input := struct {
+		Years       []*year
+		StaticFiles static.Files
+	}{
+		Years:       years,
+		StaticFiles: static.Get(),
+	}
+	var s strings.Builder
+	if err := t.ExploreTheData.Execute(&s, input); err != nil {
+		panic(err)
+	}
+	return s.String()
+}
+
+func ProgrammaticAccess() string {
+	return executeStaticTemplate(t.ProgrammaticAccess)
+}
+
+func DataSchema() string {
+	return executeStaticTemplate(t.DataSchema)
+}
+
+func HowItWorks() string {
+	return executeStaticTemplate(t.HowItWorks)
+}
+
+func executeStaticTemplate(t *template.Template) string {
+	input := struct {
+		StaticFiles static.Files
+	}{
+		StaticFiles: static.Get(),
+	}
+	var s strings.Builder
+	if err := t.Execute(&s, input); err != nil {
+		panic(err)
+	}
+	return s.String()
+}
+
+func formatBytes(b int64) string {
+	const unit = 1000
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB",
+		float64(b)/float64(div), "kMGTPE"[exp])
+}
 
 //go:embed *.html
 var files embed.FS

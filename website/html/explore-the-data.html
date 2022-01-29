@@ -2,56 +2,47 @@
 
 <p>
     You can use this page to manually download subway data for specific days.
-    We have instructions for <a href="/programmatic-access">programmatically downloading data in bulk</a>.
+    There are instructions for <a href="/programmatic-access">programmatically downloading data in bulk</a>.
 </p>
 
-        <h3>Index</h3>
-    {{ $month := "" }}
-    {{ $year := "" }}
-    {{range $i, $_ := .NYCSubway.AvailableDays}}
-        {{ $a := $.NYCSubway.RecentAvailableDay $i }}
-        {{ if not (eq $year $a.Day.YearString) }}
-            {{ if not (eq $i 0)}}
-                </ul>
-            {{ end }}
-            <h4>{{  $a.Day.YearString }}</h4>
-                <ul class="links">
-        {{ end }}
-        {{ if not (eq $month $a.Day.MonthString) }}
-            <li><a href="#{{ $a.Day.MonthString }}">{{  $a.Day.AsTime.Format "January" }}</a></li>
-        {{ end }}
-        {{ $year = $a.Day.YearString}}
-        {{ $month = $a.Day.MonthString}}
+<h3>Index</h3>
+{{range $i, $y := .Years }}
+    {{ if not (eq $i 0)}}
+    </ul>
     {{ end }}
+    <h4>{{  $y.Title }}</h4>
+    <ul class="links">
+    {{range $m := $y.Months }}
+        <li><a href="#{{ $m.Name }}{{ $y.Title }}">{{  $m.Name }}</a></li>
+    {{ end }}
+{{ end }}
     </ul>
 
-        <h3>Data</h3>
-    {{ $month = "" }}
-    {{range $i, $_ := .NYCSubway.AvailableDays}}
-        {{ $a := $.NYCSubway.RecentAvailableDay $i }}
-        {{ if not (eq $month $a.Day.MonthString) }}
-            {{ if not (eq $i 0)}}
-            </table>
-            {{ end }}
-                <a id="{{ $a.Day.MonthString }}"></a>
-            <h4>{{ $a.Day.AsTime.Format "January 2006" }}</h4>
-            <table>
-                <tr>
-                    <th>Date</th>
-                    <th colspan="3">Downloads</th>
-                    <th>Last updated</th>
-                </tr>
-        {{ end }}
-        {{ $month = $a.Day.MonthString}}
-        <tr>
-            <td>{{ $a.Day.AsTime.Format "January 02, 2006" }}</td>
-            <td><a href="/data/nycsubway-{{ $a.Day }}-csv.tar.xz">csv ({{ $a.Sizes.Csv }})</a></td>
-            <td><a href="/data/nycsubway-{{ $a.Day }}-sql.tar.xz">sql ({{ $a.Sizes.Sql }})</a></td>
-            <td><a href="/data/nycsubway-{{ $a.Day }}-gtfsrt.tar.xz">gtfsrt ({{ $a.Sizes.Gtfsrt }})</a></td>
-            <td><span class="small">{{ $a.LastUpdated.Format "January 02, 2006"}}</span></td>
-        </tr>
-    {{end}}
 
+<h3>Data</h3>
+{{range $y := .Years }}
+    {{range $i, $m := $y.Months }}
+        {{ if not (eq $i 0)}}
+    </table>
+        {{ end }}
+    <a name="{{ $m.Name }}{{ $y.Title }}"></a>
+    <h4>{{ $m.Title }}</h4>
+    <table>
+        <tr>
+            <th>Date</th>
+            <th colspan="2">Downloads</th>
+            <th>Last updated</th>
+        </tr>
+        {{range $d := $m.Days }}
+        <tr>
+            <td>{{ $d.Title }}</td>
+            <td><a href="{{ $d.CsvUrl }}">csv ({{ $d.CsvSize }})</a></td>
+            <td><a href="{{ $d.GtfsrtUrl }}">gtfsrt ({{ $d.GtfsrtSize }})</a></td>
+            <td><span class="small">{{ $d.Updated }}</span></td>
+        </tr>
+        {{end}}
+    {{ end }}
+{{ end }}
     </table>
 
 {{ end }}

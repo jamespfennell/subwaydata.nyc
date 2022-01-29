@@ -1,12 +1,8 @@
 package metadata
 
 import (
-	"embed"
 	"encoding/json"
 	"fmt"
-	"log"
-	"strings"
-	"sync"
 	"time"
 )
 
@@ -76,8 +72,16 @@ func (d Day) String() string {
 	return fmt.Sprintf("%04d-%02d-%02d", d.year, d.month, d.day)
 }
 
+func (d Day) YearString() string {
+	return fmt.Sprintf("%04d", d.year)
+}
+
 func (d Day) MonthString() string {
 	return fmt.Sprintf("%04d-%02d", d.year, d.month)
+}
+
+func (d Day) Format(layout string) string {
+	return time.Date(d.year, d.month, d.day, 12, 0, 0, 0, time.UTC).Format(layout)
 }
 
 func (d Day) Start(loc *time.Location) time.Time {
@@ -105,48 +109,4 @@ func (d Day) Next() Day {
 		month: t.Month(),
 		day:   t.Day(),
 	}
-}
-
-//go:embed *json
-var buildTimeConfigFiles embed.FS
-
-// TODO: destory
-type Provider struct {
-	configFiles map[string]*Metadata
-	m           sync.RWMutex
-}
-
-func NewProvider() *Provider {
-	p := Provider{configFiles: map[string]*Metadata{}}
-	files, err := buildTimeConfigFiles.ReadDir(".")
-	if err != nil {
-		panic(fmt.Sprintf("Failed to read the build time config files: %s", err))
-	}
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-		if !strings.HasSuffix(file.Name(), ".json") {
-			continue
-		}
-		id := strings.TrimSuffix(file.Name(), ".json")
-		b, err := buildTimeConfigFiles.ReadFile(file.Name())
-		if err != nil {
-			panic(fmt.Sprintf("Failed to read build time config file %q: %s", file.Name(), err))
-		}
-		var c Metadata
-		if err := json.Unmarshal(b, &c); err != nil {
-			panic(fmt.Sprintf("Failed to parse build time config file %q: %s", file.Name(), err))
-		}
-		log.Printf("Read build time config file with id %q\n", id)
-		p.configFiles[id] = &c
-		fmt.Println(c)
-	}
-	return &p
-}
-
-func (p *Provider) Config(id string) *Metadata {
-	p.m.RLock()
-	defer p.m.RUnlock()
-	return p.configFiles[id]
 }
