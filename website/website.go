@@ -90,7 +90,10 @@ type dynamicContent struct {
 
 func newDynamicContent(metadataUrl string) *dynamicContent {
 	d := dynamicContent{
-		metadataUrl: metadataUrl,
+		metadataUrl:    metadataUrl,
+		home:           html.Home(nil),
+		exploreTheData: html.ExploreTheData(nil),
+		metadataJson:   "\"failed to load metadata\"",
 	}
 	t := time.NewTicker(500 * time.Millisecond)
 	defer t.Stop()

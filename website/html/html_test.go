@@ -55,5 +55,8 @@ func TestTemplates(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.f(&m)
 		})
+		t.Run(tc.name+"_nil_metadata", func(t *testing.T) {
+			tc.f(nil)
+		})
 	}
 }

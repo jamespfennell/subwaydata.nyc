@@ -15,6 +15,9 @@ import (
 const dataBaseUrl = "https://data.subwaydata.nyc"
 
 func Home(m *metadata.Metadata) string {
+	if m == nil {
+		m = &metadata.Metadata{}
+	}
 	var firstDay metadata.Day
 	var mostRecentDay metadata.Day
 	var lastUpdated time.Time
@@ -56,7 +59,7 @@ type year struct {
 
 type month struct {
 	Title string
-	Name string
+	Name  string
 	Days  []dayData
 }
 
@@ -70,6 +73,9 @@ type dayData struct {
 }
 
 func ExploreTheData(m *metadata.Metadata) string {
+	if m == nil {
+		m = &metadata.Metadata{}
+	}
 	var years []*year
 	for _, p := range m.ProcessedDays {
 		p := p
@@ -83,7 +89,7 @@ func ExploreTheData(m *metadata.Metadata) string {
 		if len(year.Months) == 0 || year.Months[j].Title != p.Day.Format("January 2006") {
 			year.Months = append(year.Months, month{
 				Title: p.Day.Format("January 2006"),
-				Name: p.Day.Format("January"),
+				Name:  p.Day.Format("January"),
 			})
 			j += 1
 		}
