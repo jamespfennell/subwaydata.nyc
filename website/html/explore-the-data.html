@@ -7,7 +7,7 @@
 
 <h3>Index</h3>
 {{range $i, $y := .Years }}
-    {{ if not (eq $i 0)}}
+    {{ if not (eq $i 0) }}
     </ul>
     {{ end }}
     <h4>{{  $y.Title }}</h4>
@@ -20,9 +20,9 @@
 
 
 <h3>Data</h3>
-{{range $y := .Years }}
-    {{range $i, $m := $y.Months }}
-        {{ if not (eq $i 0)}}
+{{range $i, $y := .Years }}
+    {{range $j, $m := $y.Months }}
+        {{ if or (not (eq $i 0)) (not (eq $j 0)) }}
     </table>
         {{ end }}
     <a name="{{ $m.Name }}{{ $y.Title }}"></a>

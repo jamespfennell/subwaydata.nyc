@@ -50,7 +50,7 @@ type PendingDay struct {
 }
 
 func CalculatePendingDays(feeds []Feed, processedDays []metadata.ProcessedDay, lastDay metadata.Day) []PendingDay {
-	upperBound := lastDay.Next()
+	upperBound := lastDay //.Next()
 	firstDay := upperBound
 	for _, feed := range feeds {
 		if feed.FirstDay.Before(firstDay) {
@@ -107,7 +107,7 @@ func contains(a, b []string) bool {
 }
 
 func sortProcessedDays(in []PendingDay) {
-	sort.Sort(byDay(in))
+	sort.Sort(sort.Reverse(byDay(in)))
 }
 
 type byDay []PendingDay

@@ -74,6 +74,20 @@ func main() {
 				Name:        "backlog",
 				Usage:       "run the ETL pipeline for all days that are not up-to-date",
 				Description: "Runs the pipeline for days that are not up to date.",
+				Flags: []cli.Flag{
+					&cli.DurationFlag{
+						Name:  "timeout",
+						Usage: "maximum time to run for",
+					},
+					&cli.IntFlag{
+						Name:  "limit",
+						Usage: "maximum number of days to process",
+					},
+					&cli.BoolFlag{
+						Name:  "dry-run",
+						Usage: "only calculate the days that need to be updated, but don't update them",
+					},
+				},
 				Action: func(c *cli.Context) error {
 					session, err := newSession(c)
 					if err != nil {
@@ -98,13 +112,34 @@ func main() {
 						return nil
 					}
 					fmt.Printf("%d days in the backlog:\n", len(pendingDays))
-					for i := 0; i < len(pendingDays); i++ {
+					for i, pendingDay := range pendingDays {
 						if i >= 20 {
 							fmt.Printf("...and %d more days\n", len(pendingDays)-20)
 							break
 						}
-						d := pendingDays[len(pendingDays)-i-1]
+						d := pendingDay
 						fmt.Printf("- %s (feeds: %s)\n", d.Day, d.FeedIDs)
+					}
+					if c.Bool("dry-run") {
+						return nil
+					}
+					fmt.Println("Running")
+					for i, pendingDay := range pendingDays {
+						if c.IsSet("limit") && c.Int("limit") <= i {
+							fmt.Println("Reached limit, ending...")
+							break
+						}
+						fmt.Printf("Running for %s\n", pendingDay.Day)
+						err := pipeline.Run(
+							pendingDay.Day,
+							pendingDay.FeedIDs,
+							session.ec,
+							session.hc,
+							session.sc,
+						)
+						if err != nil {
+							return err
+						}
 					}
 					return nil
 				},
