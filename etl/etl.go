@@ -1,13 +1,14 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
-	"time"
 
 	hconfig "github.com/jamespfennell/hoard/config"
 	"github.com/jamespfennell/subwaydata.nyc/etl/config"
+	"github.com/jamespfennell/subwaydata.nyc/etl/periodic"
 	"github.com/jamespfennell/subwaydata.nyc/etl/pipeline"
 	"github.com/jamespfennell/subwaydata.nyc/etl/storage"
 	"github.com/jamespfennell/subwaydata.nyc/metadata"
@@ -39,7 +40,6 @@ func main() {
 		Commands: []*cli.Command{
 			{
 				// periodic 01:00:00-04:00:00 05:00:00-06:30:00 - run the backlog process during the day
-				// backlog --limit N --timeout T --list-only
 				Name:        "run",
 				Usage:       "run the ETL pipeline for a specific day",
 				UsageText:   "etl run YYYY-MM-DD",
@@ -93,54 +93,38 @@ func main() {
 					if err != nil {
 						return err
 					}
-					ec := session.ec
-					m, err := session.sc.GetMetadata()
+					opts := pipeline.BacklogOptions{
+						DryRun: c.Bool("dry-run"),
+					}
+					if c.IsSet("limit") {
+						l := c.Int("limit")
+						opts.Limit = &l
+					}
+					return pipeline.Backlog(session.ec, session.hc, session.sc, opts)
+				},
+			},
+			{
+				Name:  "periodic",
+				Usage: "run the ETL pipeline at the specified intervals each day",
+				Action: func(c *cli.Context) error {
+					session, err := newSession(c)
 					if err != nil {
-						return fmt.Errorf("failed to obtain metadata: %w", err)
+						return err
 					}
-
-					loc, err := time.LoadLocation(ec.Timezone)
-					if err != nil {
-						return fmt.Errorf("unable to load timezone %q: %w", ec.Timezone, err)
+					args := c.Args().Slice()
+					if len(args) == 0 {
+						return fmt.Errorf("no intervals provided")
 					}
-					now := time.Now().In(loc).Add(-5 * time.Hour).Format("2006-01-02")
-					d, _ := metadata.ParseDay(now)
-
-					pendingDays := config.CalculatePendingDays(ec.Feeds, m.ProcessedDays, d)
-					if len(pendingDays) == 0 {
-						fmt.Println("No days in the backlog")
-						return nil
-					}
-					fmt.Printf("%d days in the backlog:\n", len(pendingDays))
-					for i, pendingDay := range pendingDays {
-						if i >= 20 {
-							fmt.Printf("...and %d more days\n", len(pendingDays)-20)
-							break
-						}
-						d := pendingDay
-						fmt.Printf("- %s (feeds: %s)\n", d.Day, d.FeedIDs)
-					}
-					if c.Bool("dry-run") {
-						return nil
-					}
-					fmt.Println("Running")
-					for i, pendingDay := range pendingDays {
-						if c.IsSet("limit") && c.Int("limit") <= i {
-							fmt.Println("Reached limit, ending...")
-							break
-						}
-						fmt.Printf("Running for %s\n", pendingDay.Day)
-						err := pipeline.Run(
-							pendingDay.Day,
-							pendingDay.FeedIDs,
-							session.ec,
-							session.hc,
-							session.sc,
-						)
+					var intervals []periodic.Interval
+					for _, arg := range args {
+						interval, err := periodic.NewInterval(arg)
 						if err != nil {
-							return err
+							return fmt.Errorf("failed to parse interval: %w", err)
 						}
+						intervals = append(intervals, interval)
 					}
+					ctx := context.Background()
+					periodic.Run(ctx, session.ec, session.hc, session.sc, intervals)
 					return nil
 				},
 			},

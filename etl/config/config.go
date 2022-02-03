@@ -1,7 +1,9 @@
 package config
 
 import (
+	"encoding/json"
 	"sort"
+	"time"
 
 	"github.com/jamespfennell/subwaydata.nyc/metadata"
 )
@@ -12,7 +14,7 @@ type Config struct {
 	Feeds []Feed
 
 	// Timezone to use.
-	Timezone string
+	Timezone Timezone
 
 	// URL of the remote object storage service hosting the bucket.
 	BucketUrl string
@@ -49,8 +51,33 @@ type PendingDay struct {
 	FeedIDs []string
 }
 
+type Timezone struct {
+	name string
+	loc  *time.Location
+}
+
+func (t Timezone) AsLoc() *time.Location {
+	return t.loc
+}
+
+func (t *Timezone) UnmarshalJSON(data []byte) error {
+	if err := json.Unmarshal(data, &t.name); err != nil {
+		return err
+	}
+	var err error
+	t.loc, err = time.LoadLocation(t.name)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (t Timezone) MarshalJSON() ([]byte, error) {
+	return json.Marshal(t.name)
+}
+
 func CalculatePendingDays(feeds []Feed, processedDays []metadata.ProcessedDay, lastDay metadata.Day) []PendingDay {
-	upperBound := lastDay //.Next()
+	upperBound := lastDay.Next()
 	firstDay := upperBound
 	for _, feed := range feeds {
 		if feed.FirstDay.Before(firstDay) {

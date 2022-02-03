@@ -57,7 +57,7 @@ func TestCalculatePendingDays(t *testing.T) {
 					Feeds: []string{feedID1},
 				},
 			},
-			lastDay: jan6,
+			lastDay: jan5,
 			wantOut: []PendingDay{
 				{
 					Day:     jan5,
@@ -88,7 +88,7 @@ func TestCalculatePendingDays(t *testing.T) {
 					Feeds: []string{feedID1},
 				},
 			},
-			lastDay: jan6,
+			lastDay: jan5,
 			wantOut: []PendingDay{
 				{
 					Day:     jan4,
@@ -114,7 +114,7 @@ func TestCalculatePendingDays(t *testing.T) {
 					Feeds: []string{feedID1},
 				},
 			},
-			lastDay: jan6,
+			lastDay: jan5,
 			wantOut: []PendingDay{
 				{
 					Day:     jan4,
@@ -140,7 +140,7 @@ func TestCalculatePendingDays(t *testing.T) {
 					Feeds: []string{feedID2},
 				},
 			},
-			lastDay: jan6,
+			lastDay: jan5,
 			wantOut: []PendingDay{
 				{
 					Day:     jan5,

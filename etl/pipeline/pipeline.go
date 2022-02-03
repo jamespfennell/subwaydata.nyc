@@ -23,7 +23,51 @@ import (
 
 const softwareVersion = 1
 
-// Run runs the subwaydata.nyc ETL pipeline for the provided day.
+type BacklogOptions struct {
+	Limit  *int
+	DryRun bool
+}
+
+// Backlog runs the ETL pipeline for all days in the backlog.
+func Backlog(ec *config.Config, hc *hconfig.Config, sc *storage.Client, opts BacklogOptions) error {
+	now := time.Now().In(ec.Timezone.AsLoc()).Add(-29 * time.Hour).Format("2006-01-02")
+	endDay, _ := metadata.ParseDay(now)
+
+	m, err := sc.GetMetadata()
+	if err != nil {
+		return fmt.Errorf("failed to obtain metadata: %w", err)
+	}
+
+	pendingDays := config.CalculatePendingDays(ec.Feeds, m.ProcessedDays, endDay)
+	if len(pendingDays) == 0 {
+		log.Println("No days in the backlog")
+		return nil
+	}
+	log.Printf("%d days in the backlog:\n", len(pendingDays))
+	for i, pendingDay := range pendingDays {
+		if opts.Limit != nil && *opts.Limit <= i {
+			fmt.Println("Reached limit, ending...")
+			break
+		}
+		log.Printf("Processing backlog for %s\n", pendingDay.Day)
+		if opts.DryRun {
+			continue
+		}
+		err := Run(
+			pendingDay.Day,
+			pendingDay.FeedIDs,
+			ec,
+			hc,
+			sc,
+		)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Run runs the ETL pipeline for the provided day.
 func Run(day metadata.Day, feedIDs []string, ec *config.Config, hc *hconfig.Config, sc *storage.Client) error {
 	tmpDir, err := os.MkdirTemp("", fmt.Sprintf("subwaydatanyc_%s_*", day))
 	if err != nil {
@@ -31,12 +75,8 @@ func Run(day metadata.Day, feedIDs []string, ec *config.Config, hc *hconfig.Conf
 	}
 	defer os.RemoveAll(tmpDir)
 
-	loc, err := time.LoadLocation(ec.Timezone)
-	if err != nil {
-		return fmt.Errorf("unable to load timezone %q: %w", ec.Timezone, err)
-	}
-	start := day.Start(loc)
-	end := day.End(loc)
+	start := day.Start(ec.Timezone.AsLoc())
+	end := day.End(ec.Timezone.AsLoc())
 
 	// Stage one: download the data from Hoard
 	availableFeedIDs := map[string]bool{}
@@ -62,8 +102,8 @@ func Run(day metadata.Day, feedIDs []string, ec *config.Config, hc *hconfig.Conf
 			KeepPacked:      false,
 			FlattenTimeDirs: true,
 			FlattenFeedDirs: false,
-			Start:           day.Start(loc).Add(-4 * time.Hour),
-			End:             day.End(loc).Add(4 * time.Hour),
+			Start:           day.Start(ec.Timezone.AsLoc()).Add(-4 * time.Hour),
+			End:             day.End(ec.Timezone.AsLoc()).Add(4 * time.Hour),
 		},
 	)
 	if err != nil {
@@ -79,8 +119,8 @@ func Run(day metadata.Day, feedIDs []string, ec *config.Config, hc *hconfig.Conf
 		}
 		j := journal.BuildJournal(
 			source,
-			day.Start(loc),
-			day.End(loc),
+			day.Start(ec.Timezone.AsLoc()),
+			day.End(ec.Timezone.AsLoc()),
 		)
 		allTrips = append(allTrips, j.Trips...)
 	}

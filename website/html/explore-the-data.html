@@ -22,7 +22,7 @@
 <h3>Data</h3>
 {{range $i, $y := .Years }}
     {{range $j, $m := $y.Months }}
-        {{ if or (not (eq $i 0)) (not (eq $j 0)) }}
+        {{ if not (and (eq $i 0) (eq $j 0)) }}
     </table>
         {{ end }}
     <a name="{{ $m.Name }}{{ $y.Title }}"></a>

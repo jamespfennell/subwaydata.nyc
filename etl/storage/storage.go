@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -95,9 +96,24 @@ func (c *Client) UpdateMetadata(f UpdateMetadataFunc) error {
 	if commit := f(m); !commit {
 		return nil
 	}
+	sort.Sort(sort.Reverse(byDay(m.ProcessedDays)))
 	b, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return err
 	}
 	return c.Write(b, c.ec.MetadataPath)
+}
+
+type byDay []metadata.ProcessedDay
+
+func (b byDay) Len() int {
+	return len(b)
+}
+
+func (b byDay) Swap(i, j int) {
+	b[i], b[j] = b[j], b[i]
+}
+
+func (b byDay) Less(i, j int) bool {
+	return b[i].Day.Before(b[j].Day)
 }
