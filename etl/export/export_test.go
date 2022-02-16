@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jamespfennell/gtfs"
 	"github.com/jamespfennell/subwaydata.nyc/etl/journal"
 	"github.com/jamespfennell/xz"
 )
@@ -16,7 +17,7 @@ var trip journal.Trip = journal.Trip{
 	TripUID:     "TripUID",
 	TripID:      "TripID",
 	RouteID:     "RouteID",
-	DirectionID: true,
+	DirectionID: gtfs.DirectionIDTrue,
 	VehicleID:   "VehicleID",
 	StartTime:   time.Unix(100, 0),
 	StopTimes: []journal.StopTime{
@@ -41,7 +42,7 @@ var trip journal.Trip = journal.Trip{
 }
 
 const expectedTripsCsv = `trip_uid,trip_id,route_id,direction_id,start_time,vehicle_id
-TripUID,TripID,RouteID,true,100,VehicleID
+TripUID,TripID,RouteID,1,100,VehicleID
 `
 
 const expectedStopTimesCsv = `trip_uid,stop_id,track,arrival_time,departure_time

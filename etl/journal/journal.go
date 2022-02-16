@@ -4,13 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
-	"strconv"
 	"time"
 
-	"github.com/jamespfennell/subwaydata.nyc/etl/gtfsrt"
-	"google.golang.org/protobuf/proto"
+	"github.com/jamespfennell/gtfs"
 )
 
 type Journal struct {
@@ -27,7 +24,7 @@ type Trip struct {
 	TripUID     string
 	TripID      string
 	RouteID     string
-	DirectionID bool
+	DirectionID gtfs.DirectionID
 	StartTime   time.Time
 	VehicleID   string
 
@@ -48,7 +45,7 @@ type StopTime struct {
 }
 
 type GtfrtSource interface {
-	Next() *gtfsrt.FeedMessage
+	Next() *gtfs.Realtime
 }
 
 type DirectoryGtfsrtSource struct {
@@ -75,7 +72,7 @@ func NewDirectoryGtfsrtSource(baseDir string) (*DirectoryGtfsrtSource, error) {
 	return source, nil
 }
 
-func (s *DirectoryGtfsrtSource) Next() *gtfsrt.FeedMessage {
+func (s *DirectoryGtfsrtSource) Next() *gtfs.Realtime {
 	for {
 		if len(s.fileNames) == 0 {
 			return nil
@@ -87,8 +84,10 @@ func (s *DirectoryGtfsrtSource) Next() *gtfsrt.FeedMessage {
 			fmt.Printf("Failed to read %s: %s\n", filePath, err)
 			continue
 		}
-		feedMessage := &gtfsrt.FeedMessage{}
-		if err := proto.Unmarshal(b, feedMessage); err != nil {
+		result, err := gtfs.ParseRealtime(b, &gtfs.ParseRealtimeOptions{
+			UseNyctExtension: true,
+		})
+		if err != nil {
 			fmt.Printf("Failed to parse %s as a GTFS Realtime message: %s\n", filePath, err)
 			continue
 		}
@@ -96,7 +95,7 @@ func (s *DirectoryGtfsrtSource) Next() *gtfsrt.FeedMessage {
 			fmt.Printf("Processed %d/%d files\n", s.startLen-len(s.fileNames), s.startLen)
 			s.t = time.Now()
 		}
-		return feedMessage
+		return result
 	}
 }
 
@@ -104,12 +103,14 @@ func BuildJournal(source GtfrtSource, startTime, endTime time.Time) *Journal {
 	trips := map[string]*Trip{}
 	i := 0
 	for feedMessage := source.Next(); feedMessage != nil; feedMessage = source.Next() {
-		groupedEntities := groupEntities(feedMessage)
-		for tripUID, g := range groupedEntities {
+		for _, tripUpdate := range feedMessage.Trips {
+			startTime := tripUpdate.ID.StartDate.Add(tripUpdate.ID.StartTime)
+			tripUID := fmt.Sprintf("%d%s", startTime.Unix(), tripUpdate.ID.ID[6:])
 			if existingTrip, ok := trips[tripUID]; ok {
-				existingTrip.update(&g)
+				existingTrip.update(&tripUpdate)
 			} else {
-				trip := buildTrip(&g)
+				trip := Trip{}
+				trip.update(&tripUpdate)
 				trips[tripUID] = &trip
 			}
 		}
@@ -130,171 +131,20 @@ func BuildJournal(source GtfrtSource, startTime, endTime time.Time) *Journal {
 	return j
 }
 
-type groupedEntity struct {
-	TripUID       string
-	StartTime     time.Time
-	NumDuplicates int
-	TripUpdate    *gtfsrt.TripUpdate
-	Vehicle       *gtfsrt.VehiclePosition
-	NyctTrip      *gtfsrt.NyctTripDescriptor
-}
-
-func groupEntities(a *gtfsrt.FeedMessage) map[string]groupedEntity {
-	result := map[string]groupedEntity{}
-
-	directionIDNorth := uint32(0)
-	directionIDSouth := uint32(1)
-	for _, entity := range a.Entity {
-		var trip *gtfsrt.TripDescriptor
-		if tripUpdate := entity.TripUpdate; tripUpdate != nil {
-			trip = tripUpdate.Trip
-		} else if vehicle := entity.Vehicle; vehicle != nil {
-			trip = vehicle.Trip
-		} else {
-			continue
-		}
-
-		nyctTripID, ok := parseNyctTripID(trip.GetTripId())
-		if !ok {
-			fmt.Printf("failed to parse NYCT trip ID %s\n", trip.GetTripId())
-			continue
-		}
-		startTime, ok := buildStartTime(nyctTripID, trip.GetStartDate())
-		if !ok {
-			fmt.Printf("failed to parse start time for start_date=%s, nyct_trip_id=%+v\n", trip.GetStartDate(), nyctTripID)
-			continue
-		}
-		tripUID := fmt.Sprintf("%d%s", startTime.Unix(), trip.GetTripId()[6:])
-
-		g := groupedEntity{
-			TripUID:       tripUID,
-			StartTime:     startTime,
-			NumDuplicates: 1,
-		}
-		if entity.TripUpdate != nil {
-			g.TripUpdate = entity.TripUpdate
-		}
-		if entity.Vehicle != nil {
-			g.Vehicle = entity.Vehicle
-		}
-
-		// NYCT extension logic
-		extendedEvent := proto.GetExtension(trip, gtfsrt.E_NyctTripDescriptor)
-		g.NyctTrip, _ = extendedEvent.(*gtfsrt.NyctTripDescriptor)
-		if !g.NyctTrip.GetIsAssigned() {
-			continue
-		}
-		if g.NyctTrip.GetDirection() == gtfsrt.NyctTripDescriptor_NORTH {
-			trip.DirectionId = &directionIDNorth
-		} else {
-			trip.DirectionId = &directionIDSouth
-		}
-
-		if otherG, ok := result[tripUID]; ok {
-			g.NumDuplicates = otherG.NumDuplicates + 1
-			if g.TripUpdate == nil {
-				g.TripUpdate = otherG.TripUpdate
-			}
-			if g.Vehicle == nil {
-				g.Vehicle = otherG.Vehicle
-			}
-		}
-
-		result[tripUID] = g
-	}
-
-	return result
-}
-
-func getTrack(stu *gtfsrt.TripUpdate_StopTimeUpdate) *string {
-	extendedEvent := proto.GetExtension(stu, gtfsrt.E_NyctStopTimeUpdate)
-	nyctStopTime, ok := extendedEvent.(*gtfsrt.NyctStopTimeUpdate)
-	if !ok || nyctStopTime == nil {
-		fmt.Println("Failed to read NYCT extension")
-		return nil
-	}
-	if t := nyctStopTime.ActualTrack; t != nil {
-		return t
-	}
-	return nyctStopTime.ScheduledTrack
-}
-
-func buildTrip(g *groupedEntity) Trip {
-	trip := Trip{}
-	trip.update(g)
-	return trip
-}
-
-func convertRawDirectionId(r uint32) bool {
-	return r == 0
-}
-
-func convertOptionalTime(t int64) *time.Time {
-	if t == 0 {
-		return nil
-	}
-	u := time.Unix(t, 0)
-	return &u
-}
-
-var americaNewYorkTimezone *time.Location
-var startDateRegex *regexp.Regexp = regexp.MustCompile(`^([0-9]{4})([0-9]{2})([0-9]{2})$`)
-var tripIDRegex *regexp.Regexp = regexp.MustCompile(`^([0-9]{6})_([[:alnum:]]{1,2})..([SN])([[:alnum:]]*)$`)
-
-func init() {
-	var err error
-	americaNewYorkTimezone, err = time.LoadLocation("America/New_York")
-	if err != nil {
-		panic(fmt.Errorf("failed to load America/New_York timezone: %w", err))
-	}
-}
-
-type nyctTripID struct {
-	secondsAfterMidnight int
-	routeID              string
-	directionID          bool
-	pathID               string
-}
-
-func parseNyctTripID(rawTripID string) (nyctTripID, bool) {
-	tripIDMatch := tripIDRegex.FindStringSubmatch(rawTripID)
-	if tripIDMatch == nil {
-		return nyctTripID{}, false
-	}
-	hundrethsOfMins, _ := strconv.Atoi(tripIDMatch[1])
-	return nyctTripID{
-		secondsAfterMidnight: (hundrethsOfMins * 6) / 10,
-		routeID:              tripIDMatch[2],
-		directionID:          tripIDMatch[3] == "S",
-		pathID:               tripIDMatch[4],
-	}, true
-}
-
-func buildStartTime(tripID nyctTripID, startDate string) (time.Time, bool) {
-	startDateMatch := startDateRegex.FindStringSubmatch(startDate)
-	if startDateMatch == nil {
-		return time.Time{}, false
-	}
-	year, _ := strconv.Atoi(startDateMatch[1])
-	month, _ := strconv.Atoi(startDateMatch[2])
-	day, _ := strconv.Atoi(startDateMatch[3])
-	secondsAfterMidnight := time.Duration(tripID.secondsAfterMidnight) * time.Second
-	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, americaNewYorkTimezone).Add(secondsAfterMidnight), true
-}
-
-func (trip *Trip) update(g *groupedEntity) {
-	trip.TripUID = g.TripUID
-	trip.TripID = g.TripUpdate.GetTrip().GetTripId()
-	trip.RouteID = g.TripUpdate.GetTrip().GetRouteId()
-	trip.DirectionID = convertRawDirectionId(g.TripUpdate.GetTrip().GetDirectionId())
-	trip.StartTime = g.StartTime
-	if vehicleID := g.Vehicle.GetVehicle().GetId(); vehicleID != "" {
-		trip.VehicleID = vehicleID
+func (trip *Trip) update(tripUpdate *gtfs.Trip) {
+	startTime := tripUpdate.ID.StartDate.Add(tripUpdate.ID.StartTime)
+	trip.TripUID = fmt.Sprintf("%d%s", startTime.Unix(), tripUpdate.ID.ID[6:])
+	trip.TripID = tripUpdate.ID.ID
+	trip.RouteID = tripUpdate.ID.RouteID
+	trip.DirectionID = tripUpdate.ID.DirectionID
+	trip.StartTime = tripUpdate.ID.StartDate.Add(tripUpdate.ID.StartTime)
+	if tripUpdate.Vehicle != nil && tripUpdate.Vehicle.ID != nil {
+		trip.VehicleID = tripUpdate.Vehicle.ID.ID
 	}
 	trip.NumUpdates += 1
 
-	stus := g.TripUpdate.GetStopTimeUpdate()
-	if len(stus) == 0 {
+	stopTimeUpdates := tripUpdate.StopTimeUpdates
+	if len(stopTimeUpdates) == 0 {
 		return
 	}
 
@@ -302,33 +152,40 @@ func (trip *Trip) update(g *groupedEntity) {
 	for i, stopTime := range trip.StopTimes {
 		// TODO: doesn't this handle the case when the first stop has just been added to the schedule
 		// Probably need a fancier algo for this
-		if stopTime.StopID == stus[0].GetStopId() {
+		if stopTime.StopID == *stopTimeUpdates[0].StopID {
 			start = i
 			break
 		}
 	}
 
 	end := start
-	for _, stu := range stus {
+	for _, stopTimeUpdate := range stopTimeUpdates {
 		if len(trip.StopTimes) >= end {
 			break
 		}
-		if trip.StopTimes[end].StopID != stu.GetStopId() {
+		if trip.StopTimes[end].StopID != *stopTimeUpdate.StopID {
 			break
 		}
-		trip.StopTimes[end].ArrivalTime = convertOptionalTime(stu.GetArrival().GetTime())
-		trip.StopTimes[end].DepartureTime = convertOptionalTime(stu.GetDeparture().GetTime())
-		trip.StopTimes[end].Track = getTrack(stu)
+		trip.StopTimes[end].update(&stopTimeUpdate)
 		end++
 	}
 
 	trip.StopTimes = trip.StopTimes[:end]
-	for _, stu := range stus[end-start:] {
-		trip.StopTimes = append(trip.StopTimes, StopTime{
-			StopID:        stu.GetStopId(),
-			ArrivalTime:   convertOptionalTime(stu.GetArrival().GetTime()),
-			DepartureTime: convertOptionalTime(stu.GetDeparture().GetTime()),
-			Track:         getTrack(stu),
-		})
+	for _, stu := range stopTimeUpdates[end-start:] {
+		stopTime := StopTime{}
+		stopTime.update(&stu)
+		trip.StopTimes = append(trip.StopTimes, stopTime)
 	}
+}
+
+func (stopTime *StopTime) update(stopTimeUpdate *gtfs.StopTimeUpdate) {
+	stopTime.StopID = *stopTimeUpdate.StopID
+	if stopTimeUpdate.Arrival != nil {
+		stopTime.ArrivalTime = stopTimeUpdate.Arrival.Time
+	}
+	if stopTimeUpdate.Departure != nil {
+		stopTime.DepartureTime = stopTimeUpdate.Departure.Time
+	}
+	track := ""
+	stopTime.Track = &track
 }

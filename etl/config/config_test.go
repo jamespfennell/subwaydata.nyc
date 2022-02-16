@@ -172,7 +172,7 @@ func TestCalculatePendingDays(t *testing.T) {
 
 	for i, testCase := range testCases {
 		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
-			out := CalculatePendingDays(testCase.feeds, testCase.processedDays, testCase.lastDay)
+			out := CalculatePendingDays(testCase.feeds, testCase.processedDays, testCase.lastDay, 0)
 			if !reflect.DeepEqual(out, testCase.wantOut) {
 				t.Errorf("Expected != actual. Expected:\n%+v\nActual:\n%+v", testCase.wantOut, out)
 			}

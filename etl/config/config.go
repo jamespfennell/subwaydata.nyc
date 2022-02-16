@@ -76,7 +76,7 @@ func (t Timezone) MarshalJSON() ([]byte, error) {
 	return json.Marshal(t.name)
 }
 
-func CalculatePendingDays(feeds []Feed, processedDays []metadata.ProcessedDay, lastDay metadata.Day) []PendingDay {
+func CalculatePendingDays(feeds []Feed, processedDays []metadata.ProcessedDay, lastDay metadata.Day, softwareVersion int) []PendingDay {
 	upperBound := lastDay.Next()
 	firstDay := upperBound
 	for _, feed := range feeds {
@@ -98,16 +98,16 @@ func CalculatePendingDays(feeds []Feed, processedDays []metadata.ProcessedDay, l
 		}
 	}
 
-	dayToProcessedFeeds := map[metadata.Day][]string{}
+	dayToProcessedDay := map[metadata.Day]metadata.ProcessedDay{}
 	for _, processedDay := range processedDays {
-		dayToProcessedFeeds[processedDay.Day] = processedDay.Feeds
+		dayToProcessedDay[processedDay.Day] = processedDay
 	}
 
 	result := []PendingDay{}
 	for day, requiredFeeds := range dayToRequiredFeeds {
 		requiredFeeds := requiredFeeds
-		processedFeeds := dayToProcessedFeeds[day]
-		if !contains(processedFeeds, requiredFeeds) {
+		processedDay := dayToProcessedDay[day]
+		if processedDay.SoftwareVersion < softwareVersion || !contains(processedDay.Feeds, requiredFeeds) {
 			result = append(result, PendingDay{
 				Day:     day,
 				FeedIDs: requiredFeeds,

@@ -21,7 +21,7 @@ import (
 	"github.com/jamespfennell/xz"
 )
 
-const softwareVersion = 1
+const softwareVersion = 2
 
 type BacklogOptions struct {
 	Limit  *int
@@ -38,7 +38,7 @@ func Backlog(ec *config.Config, hc *hconfig.Config, sc *storage.Client, opts Bac
 		return fmt.Errorf("failed to obtain metadata: %w", err)
 	}
 
-	pendingDays := config.CalculatePendingDays(ec.Feeds, m.ProcessedDays, endDay)
+	pendingDays := config.CalculatePendingDays(ec.Feeds, m.ProcessedDays, endDay, softwareVersion)
 	if len(pendingDays) == 0 {
 		log.Println("No days in the backlog")
 		return nil

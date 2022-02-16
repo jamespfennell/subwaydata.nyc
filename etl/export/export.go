@@ -8,6 +8,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/jamespfennell/gtfs"
 	"github.com/jamespfennell/subwaydata.nyc/etl/journal"
 	"github.com/jamespfennell/xz"
 )
@@ -30,6 +31,16 @@ var funcMap = template.FuncMap{
 			return ""
 		}
 		return fmt.Sprintf("%d", t.Unix())
+	},
+	"FormatDirectionID": func(d gtfs.DirectionID) string {
+		switch d {
+		case gtfs.DirectionIDFalse:
+			return "0"
+		case gtfs.DirectionIDTrue:
+			return "1"
+		default:
+			return ""
+		}
 	},
 }
 
