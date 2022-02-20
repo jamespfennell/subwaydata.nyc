@@ -2,28 +2,33 @@
 <p>
     Subway Data NYC hosts a growing dataset of train arrival times for the New York City subway starting March 15, 2021.
     For each trip that runs in the subway,
-    the dataset contains the list of stations the trip stopped at and the times it arrived.
+    the dataset contains the list of stations the trip called at and the times it stopped.
     The dataset is updated every morning at around 6am with data from the previous day.
 </p>
 <p>
-    Go <a href="/explore-the-data">explore the data</a> to get started.
-</p>
-<p>
-    The dataset is built using the <a href="https://api.mta.info">GTFS Realtime data published by the MTA</a>.
-    The <a href="/how-it-worls">how it works page</a> describes the process in detail.
-    All of the <a href="https://github.com/jamespfennell/subwaydata.nyc">software</a> used 
-        (including this website) is open source and adaptable for other transit systems.
+    <a href="/explore-the-data">Explore the data</a> to get started.
 </p>
 
 <img src="{{ .StaticFiles.West8thStreetJpg.FullPath }}" alt="West 8th Street station in Coney Island, Brooklyn" class="display-img">
 <p class="caption">by <a href="https://unsplash.com/@punttim">Tim Gouw</a> via Unsplash</p>
 
-    <h2>Data set information</h2>
+<p>
+    The dataset is built using the <a href="https://api.mta.info">GTFS Realtime data feeds published by the MTA</a>.
+    The structure of the dataset
+      is described in the <a href="/data-schema"> data schema page</a>.
+    The <a href="/how-it-works">how it works page</a> describes how the dataset is build.
+</p>
+<p>
+    All of the <a href="https://github.com/jamespfennell/subwaydata.nyc">software</a> used 
+        (including this website) is open source and adaptable for other transit systems.
+</p>
+
+
+    <h2>Metadata</h2>
     <ul>
-        <li>First day of data: {{ .FirstDay }}</li>
+        <li>Last updated: {{ .LastUpdated }} Eastern</li>
         <li>Most recent day of data: {{ .MostRecentDay }}</li>
         <li>Number of days of data: {{ .NumDays }}</li>
-        <li>Last updated: {{ .LastUpdated }} Eastern</li>
     </ul>
 
 {{ end }}

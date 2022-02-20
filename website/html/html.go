@@ -14,6 +14,16 @@ import (
 
 const dataBaseUrl = "https://data.subwaydata.nyc"
 
+var americaNewYork *time.Location
+
+func init() {
+	var err error
+	americaNewYork, err = time.LoadLocation("America/New_York")
+	if err != nil {
+		panic("failed to load America/New_York timezone")
+	}
+}
+
 func Home(m *metadata.Metadata) string {
 	if m == nil {
 		m = &metadata.Metadata{}
@@ -42,7 +52,7 @@ func Home(m *metadata.Metadata) string {
 		FirstDay:      firstDay.Format("January 2, 2006"),
 		MostRecentDay: mostRecentDay.Format("January 2, 2006"),
 		NumDays:       len(m.ProcessedDays),
-		LastUpdated:   lastUpdated.Format("January 2, 2006 at 15:04"),
+		LastUpdated:   lastUpdated.In(americaNewYork).Format("January 2, 2006 at 15:04"),
 		StaticFiles:   static.Get(),
 	}
 	var s strings.Builder

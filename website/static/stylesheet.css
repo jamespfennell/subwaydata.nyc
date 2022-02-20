@@ -106,8 +106,7 @@ table tr:nth-child(even) {
 
 #main a {
     text-decoration: underline;
-    color: #2A4747;
-    text-underline-position: under;
+    color: #306865;
 }
 
 #main a:hover {

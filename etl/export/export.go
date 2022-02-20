@@ -47,20 +47,27 @@ var funcMap = template.FuncMap{
 var tripsCsv *template.Template = template.Must(template.New("trips.csv.tmpl").Funcs(funcMap).Parse(tripsCsvTmpl))
 var stopTimesCsv *template.Template = template.Must(template.New("stop_times.csv.tmpl").Funcs(funcMap).Parse(stopTimesCsvTmpl))
 
-// AsCsv exports the provided trips as a tar.xz archive of csv files.
-func AsCsv(trips []journal.Trip, filePrefix string) ([]byte, error) {
+func AsCsv(trips []journal.Trip) ([]byte, []byte, error) {
 	var tripsB bytes.Buffer
 	err := tripsCsv.Execute(&tripsB, trips)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var stopTimesB bytes.Buffer
 	err = stopTimesCsv.Execute(&stopTimesB, trips)
 	if err != nil {
+		return nil, nil, err
+	}
+	return tripsB.Bytes(), stopTimesB.Bytes(), nil
+}
+
+// AsCsvTarXz exports the provided trips as a tar.xz archive of csv files.
+func AsCsvTarXz(trips []journal.Trip, filePrefix string) ([]byte, error) {
+	tripsB, stopTimesB, err := AsCsv(trips)
+	if err != nil {
 		return nil, err
 	}
-
 	var out bytes.Buffer
 	xw := xz.NewWriter(&out)
 	tw := tar.NewWriter(xw)
@@ -68,8 +75,8 @@ func AsCsv(trips []journal.Trip, filePrefix string) ([]byte, error) {
 		Name string
 		Body []byte
 	}{
-		{"trips.csv", tripsB.Bytes()},
-		{"stop_times.csv", stopTimesB.Bytes()},
+		{"trips.csv", tripsB},
+		{"stop_times.csv", stopTimesB},
 		// TODO: add a readme
 	}
 	for _, file := range files {

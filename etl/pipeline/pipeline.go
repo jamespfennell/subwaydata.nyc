@@ -21,7 +21,7 @@ import (
 	"github.com/jamespfennell/xz"
 )
 
-const softwareVersion = 2
+const softwareVersion = 3
 
 type BacklogOptions struct {
 	Limit  *int
@@ -127,7 +127,7 @@ func Run(day metadata.Day, feedIDs []string, ec *config.Config, hc *hconfig.Conf
 
 	// Stage three: export all of the trips.
 	log.Printf("Creating CSV export")
-	csvBytes, err := export.AsCsv(allTrips, fmt.Sprintf("%s%s_", ec.RemotePrefix, day))
+	csvBytes, err := export.AsCsvTarXz(allTrips, fmt.Sprintf("%s%s_", ec.RemotePrefix, day))
 	if err != nil {
 		return fmt.Errorf("failed to export trips to CSV: %w", err)
 	}

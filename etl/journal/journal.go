@@ -2,6 +2,7 @@ package journal
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -27,24 +28,29 @@ type Trip struct {
 	DirectionID gtfs.DirectionID
 	StartTime   time.Time
 	VehicleID   string
+	IsAssigned  bool
 
 	StopTimes []StopTime
 
 	// Metadata follows
+	LastObserved        time.Time
+	MarkedPast          *time.Time
 	NumUpdates          int
 	NumScheduleChanges  int
 	NumScheduleRewrites int
 }
 
 type StopTime struct {
-	StopID string
-	// TODO: StopSequence
+	StopID        string
 	ArrivalTime   *time.Time
 	DepartureTime *time.Time
 	Track         *string
+
+	LastObserved time.Time
+	MarkedPast   *time.Time
 }
 
-type GtfrtSource interface {
+type GtfsrtSource interface {
 	Next() *gtfs.Realtime
 }
 
@@ -99,26 +105,50 @@ func (s *DirectoryGtfsrtSource) Next() *gtfs.Realtime {
 	}
 }
 
-func BuildJournal(source GtfrtSource, startTime, endTime time.Time) *Journal {
+func BuildJournal(source GtfsrtSource, startTime, endTime time.Time) *Journal {
 	trips := map[string]*Trip{}
+	activeTrips := map[string]bool{}
 	i := 0
 	for feedMessage := source.Next(); feedMessage != nil; feedMessage = source.Next() {
+		feedMessage := feedMessage
+		if feedMessage.CreatedAt == nil {
+			log.Printf("Skipping realtime feed with no created at field")
+			continue
+		}
+		createdAt := *feedMessage.CreatedAt
+		newActiveTrips := map[string]bool{}
 		for _, tripUpdate := range feedMessage.Trips {
 			startTime := tripUpdate.ID.StartDate.Add(tripUpdate.ID.StartTime)
 			tripUID := fmt.Sprintf("%d%s", startTime.Unix(), tripUpdate.ID.ID[6:])
 			if existingTrip, ok := trips[tripUID]; ok {
-				existingTrip.update(&tripUpdate)
+				existingTrip.update(&tripUpdate, createdAt)
 			} else {
-				trip := Trip{}
-				trip.update(&tripUpdate)
+				trip := Trip{
+					// One rewrite+change is expected at the start
+					NumScheduleChanges:  -1,
+					NumScheduleRewrites: -1,
+				}
+				trip.update(&tripUpdate, createdAt)
 				trips[tripUID] = &trip
 			}
+			newActiveTrips[tripUID] = true
 		}
+		for tripUID := range activeTrips {
+			if newActiveTrips[tripUID] {
+				continue
+			}
+			trips[tripUID].markPast(createdAt)
+		}
+		activeTrips = newActiveTrips
 		i++
 	}
 	var tripIDs []string
 	for tripID, trip := range trips {
 		if trip.StartTime.Before(startTime) || endTime.Before(trip.StartTime) {
+			continue
+		}
+		if !trip.IsAssigned {
+			log.Printf("Skipping return of unassigned trip %s\n", trip.TripUID)
 			continue
 		}
 		tripIDs = append(tripIDs, tripID)
@@ -131,61 +161,127 @@ func BuildJournal(source GtfrtSource, startTime, endTime time.Time) *Journal {
 	return j
 }
 
-func (trip *Trip) update(tripUpdate *gtfs.Trip) {
+func (trip *Trip) update(tripUpdate *gtfs.Trip, feedCreatedAt time.Time) {
+	if trip.IsAssigned && !tripUpdate.NyctIsAssigned {
+		log.Printf("skipping unassigned update for assigned trip %s\n", trip.TripUID)
+	}
 	startTime := tripUpdate.ID.StartDate.Add(tripUpdate.ID.StartTime)
+	vehicle := tripUpdate.GetVehicle()
+
 	trip.TripUID = fmt.Sprintf("%d%s", startTime.Unix(), tripUpdate.ID.ID[6:])
 	trip.TripID = tripUpdate.ID.ID
 	trip.RouteID = tripUpdate.ID.RouteID
 	trip.DirectionID = tripUpdate.ID.DirectionID
 	trip.StartTime = tripUpdate.ID.StartDate.Add(tripUpdate.ID.StartTime)
-	if tripUpdate.Vehicle != nil && tripUpdate.Vehicle.ID != nil {
-		trip.VehicleID = tripUpdate.Vehicle.ID.ID
-	}
+	trip.VehicleID = vehicle.GetID().ID
+	trip.IsAssigned = trip.IsAssigned || tripUpdate.NyctIsAssigned
+
+	trip.LastObserved = feedCreatedAt
+	trip.MarkedPast = nil
 	trip.NumUpdates += 1
 
 	stopTimeUpdates := tripUpdate.StopTimeUpdates
-	if len(stopTimeUpdates) == 0 {
-		return
+
+	p := createParition(trip.StopTimes, stopTimeUpdates)
+
+	// Mark old stop times as past
+	for i := range p.past {
+		p.past[i].markPast(feedCreatedAt)
 	}
 
-	start := 0
-	for i, stopTime := range trip.StopTimes {
-		// TODO: doesn't this handle the case when the first stop has just been added to the schedule
-		// Probably need a fancier algo for this
-		if stopTime.StopID == *stopTimeUpdates[0].StopID {
-			start = i
-			break
-		}
+	// Update existing stop times
+	for _, update := range p.updated {
+		update.existing.update(update.update, feedCreatedAt)
 	}
 
-	end := start
-	for _, stopTimeUpdate := range stopTimeUpdates {
-		if len(trip.StopTimes) >= end {
-			break
-		}
-		if trip.StopTimes[end].StopID != *stopTimeUpdate.StopID {
-			break
-		}
-		trip.StopTimes[end].update(&stopTimeUpdate)
-		end++
+	// Trim obselete stop times (e.g. from a schedule change)
+	trip.StopTimes = trip.StopTimes[:len(p.past)+len(p.updated)]
+	if len(trip.StopTimes) == 0 {
+		trip.NumScheduleRewrites += 1
 	}
 
-	trip.StopTimes = trip.StopTimes[:end]
-	for _, stu := range stopTimeUpdates[end-start:] {
+	// Add new stop times
+	for i := range p.new {
 		stopTime := StopTime{}
-		stopTime.update(&stu)
+		stopTime.update(&p.new[i], feedCreatedAt)
 		trip.StopTimes = append(trip.StopTimes, stopTime)
+	}
+	if len(p.new) != 0 {
+		trip.NumScheduleChanges += 1
 	}
 }
 
-func (stopTime *StopTime) update(stopTimeUpdate *gtfs.StopTimeUpdate) {
+func (trip *Trip) markPast(feedCreatedAt time.Time) {
+	if trip.MarkedPast == nil {
+		trip.MarkedPast = &feedCreatedAt
+	}
+	for i := 0; i < len(trip.StopTimes); i++ {
+		trip.StopTimes[i].markPast(feedCreatedAt)
+	}
+}
+
+type updated struct {
+	existing *StopTime
+	update   *gtfs.StopTimeUpdate
+}
+
+type partition struct {
+	past    []StopTime
+	updated []updated
+	new     []gtfs.StopTimeUpdate
+}
+
+func createParition(stopTimes []StopTime, updates []gtfs.StopTimeUpdate) partition {
+	if len(updates) == 0 {
+		return partition{
+			past: stopTimes,
+		}
+	}
+	var p partition
+
+	firstUpdatedStopID := *updates[0].StopID
+	firstUpdatedStopTimeIndex := 0
+	for i, stopTime := range stopTimes {
+		if stopTime.StopID == firstUpdatedStopID {
+			firstUpdatedStopTimeIndex = i
+			break
+		}
+	}
+	p.past = stopTimes[:firstUpdatedStopTimeIndex]
+
+	updateIndex := 0
+	for i := range stopTimes[firstUpdatedStopTimeIndex:] {
+		if updateIndex > len(updates) {
+			break
+		}
+		stopTime := &stopTimes[firstUpdatedStopTimeIndex+i]
+		update := &updates[updateIndex]
+		if stopTime.StopID != *update.StopID {
+			break
+		}
+		p.updated = append(p.updated, updated{
+			existing: stopTime,
+			update:   update,
+		})
+		updateIndex += 1
+	}
+
+	p.new = updates[updateIndex:]
+
+	return p
+}
+
+func (stopTime *StopTime) update(stopTimeUpdate *gtfs.StopTimeUpdate, feedCreatedAt time.Time) {
 	stopTime.StopID = *stopTimeUpdate.StopID
-	if stopTimeUpdate.Arrival != nil {
-		stopTime.ArrivalTime = stopTimeUpdate.Arrival.Time
+	stopTime.ArrivalTime = stopTimeUpdate.GetArrival().Time
+	stopTime.DepartureTime = stopTimeUpdate.GetDeparture().Time
+	stopTime.Track = stopTimeUpdate.NyctTrack
+	stopTime.LastObserved = feedCreatedAt
+	stopTime.MarkedPast = nil
+}
+
+func (stopTime *StopTime) markPast(feedCreatedAt time.Time) {
+	if stopTime.MarkedPast == nil {
+		stopTime.MarkedPast = &feedCreatedAt
 	}
-	if stopTimeUpdate.Departure != nil {
-		stopTime.DepartureTime = stopTimeUpdate.Departure.Time
-	}
-	track := ""
-	stopTime.Track = &track
 }
