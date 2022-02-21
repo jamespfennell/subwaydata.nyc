@@ -78,20 +78,14 @@ func (t Timezone) MarshalJSON() ([]byte, error) {
 
 func CalculatePendingDays(feeds []Feed, processedDays []metadata.ProcessedDay, lastDay metadata.Day, softwareVersion int) []PendingDay {
 	upperBound := lastDay.Next()
-	firstDay := upperBound
-	for _, feed := range feeds {
-		if feed.FirstDay.Before(firstDay) {
-			firstDay = feed.FirstDay
-		}
-	}
 
 	dayToRequiredFeeds := map[metadata.Day][]string{}
 	for _, feed := range feeds {
-		firstDay := firstDay
 		upperBound := upperBound
 		if feed.LastDay != nil && feed.LastDay.Before(upperBound) {
 			upperBound = feed.LastDay.Next()
 		}
+		firstDay := feed.FirstDay
 		for firstDay.Before(upperBound) {
 			dayToRequiredFeeds[firstDay] = append(dayToRequiredFeeds[firstDay], feed.Id)
 			firstDay = firstDay.Next()
@@ -119,14 +113,14 @@ func CalculatePendingDays(feeds []Feed, processedDays []metadata.ProcessedDay, l
 	return result
 }
 
-// contains checks if every element of b is contained in a
-func contains(a, b []string) bool {
-	aSet := map[string]bool{}
-	for _, aElem := range a {
-		aSet[aElem] = true
+// contains checks if every element of the subset is contained in the superset
+func contains(superset, subset []string) bool {
+	supersetS := map[string]bool{}
+	for _, supersetElem := range superset {
+		supersetS[supersetElem] = true
 	}
-	for _, bElem := range b {
-		if !aSet[bElem] {
+	for _, subsetElem := range subset {
+		if !supersetS[subsetElem] {
 			return false
 		}
 	}

@@ -251,7 +251,7 @@ func createParition(stopTimes []StopTime, updates []gtfs.StopTimeUpdate) partiti
 
 	updateIndex := 0
 	for i := range stopTimes[firstUpdatedStopTimeIndex:] {
-		if updateIndex > len(updates) {
+		if updateIndex >= len(updates) {
 			break
 		}
 		stopTime := &stopTimes[firstUpdatedStopTimeIndex+i]

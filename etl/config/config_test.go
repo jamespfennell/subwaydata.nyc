@@ -168,6 +168,37 @@ func TestCalculatePendingDays(t *testing.T) {
 			lastDay:       jan2,
 			wantOut:       []PendingDay{},
 		},
+		{
+			feeds: []Feed{
+				{
+					Id:       feedID1,
+					FirstDay: jan4,
+					LastDay:  nil,
+				},
+				{
+					Id:       feedID2,
+					FirstDay: jan5,
+					LastDay:  nil,
+				},
+			},
+			processedDays: []metadata.ProcessedDay{
+				{
+					Day:   jan4,
+					Feeds: []string{feedID1},
+				},
+				{
+					Day:   jan5,
+					Feeds: []string{feedID1},
+				},
+			},
+			lastDay: jan5,
+			wantOut: []PendingDay{
+				{
+					Day:     jan5,
+					FeedIDs: []string{feedID1, feedID2},
+				},
+			},
+		},
 	}
 
 	for i, testCase := range testCases {
