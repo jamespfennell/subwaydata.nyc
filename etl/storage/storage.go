@@ -8,6 +8,7 @@ import (
 	"io"
 	"path/filepath"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -20,8 +21,9 @@ import (
 )
 
 type Client struct {
-	ec *config.Config
-	sc *s3.S3
+	ec            *config.Config
+	sc            *s3.S3
+	metadataMutex sync.RWMutex
 }
 
 func NewClient(ec *config.Config) (*Client, error) {
@@ -38,18 +40,14 @@ func NewClient(ec *config.Config) (*Client, error) {
 	return &Client{ec: ec, sc: s3.New(newSession)}, nil
 }
 
-func (c *Client) Write(b []byte, remotePath string) error {
-	// TODO: accept a context in the function
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().UTC().Add(30*time.Second))
+func (c *Client) Write(ctx context.Context, b []byte, remotePath string) error {
+	ctx, cancel := context.WithDeadline(ctx, time.Now().UTC().Add(5*60*time.Second))
 	defer cancel()
 	object := s3.PutObjectInput{
 		Bucket: aws.String(c.ec.BucketName),
 		Key:    aws.String(filepath.Join(c.ec.BucketPrefix, remotePath)),
 		Body:   bytes.NewReader(b),
 		ACL:    aws.String("public-read"),
-		//Metadata: map[string]*string{
-		//"x-amz-meta-my-key": aws.String("your-value"), //required
-		//},
 	}
 	_, err := c.sc.PutObjectWithContext(ctx, &object)
 	if err != nil {
@@ -58,9 +56,10 @@ func (c *Client) Write(b []byte, remotePath string) error {
 	return nil
 }
 
-func (c *Client) GetMetadata() (*metadata.Metadata, error) {
-	// TODO: accept a context in the function
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().UTC().Add(30*time.Second))
+func (c *Client) GetMetadata(ctx context.Context) (*metadata.Metadata, error) {
+	c.metadataMutex.RLock()
+	defer c.metadataMutex.RUnlock()
+	ctx, cancel := context.WithDeadline(ctx, time.Now().UTC().Add(5*60*time.Second))
 	defer cancel()
 	o, err := c.sc.GetObjectWithContext(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(c.ec.BucketName),
@@ -88,11 +87,13 @@ func (c *Client) GetMetadata() (*metadata.Metadata, error) {
 type UpdateMetadataFunc func(*metadata.Metadata) bool
 
 // UpdateMetadata updates the metadata stored in the object storage.
-func (c *Client) UpdateMetadata(f UpdateMetadataFunc) error {
-	m, err := c.GetMetadata()
+func (c *Client) UpdateMetadata(ctx context.Context, f UpdateMetadataFunc) error {
+	m, err := c.GetMetadata(ctx)
 	if err != nil {
 		return err
 	}
+	c.metadataMutex.Lock()
+	defer c.metadataMutex.Unlock()
 	if commit := f(m); !commit {
 		return nil
 	}
@@ -101,7 +102,7 @@ func (c *Client) UpdateMetadata(f UpdateMetadataFunc) error {
 	if err != nil {
 		return err
 	}
-	return c.Write(b, c.ec.MetadataPath)
+	return c.Write(ctx, b, c.ec.MetadataPath)
 }
 
 type byDay []metadata.ProcessedDay

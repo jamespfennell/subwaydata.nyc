@@ -53,7 +53,7 @@ func Run(ctx context.Context, ec *config.Config, hc *hconfig.Config, sc *storage
 		case start := <-ticker.C:
 			//ctx, cancelFunc := context.WithTimeout(ctx, startToTimeout[start])
 			fmt.Println("Running backlog for time", start)
-			pipeline.Backlog(ec, hc, sc, pipeline.BacklogOptions{})
+			pipeline.Backlog(ctx, ec, hc, sc, pipeline.BacklogOptions{})
 		case <-ctx.Done():
 			return
 		}

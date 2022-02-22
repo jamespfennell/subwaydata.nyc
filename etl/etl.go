@@ -39,7 +39,6 @@ func main() {
 		},
 		Commands: []*cli.Command{
 			{
-				// periodic 01:00:00-04:00:00 05:00:00-06:30:00 - run the backlog process during the day
 				Name:        "run",
 				Usage:       "run the ETL pipeline for a specific day",
 				UsageText:   "etl run YYYY-MM-DD",
@@ -59,7 +58,9 @@ func main() {
 							return err
 						}
 						return pipeline.Run(
+							context.Background(),
 							d,
+							// TODO: !!!
 							[]string{"nycsubway_L"},
 							session.ec,
 							session.hc,
@@ -76,16 +77,27 @@ func main() {
 				Description: "Runs the pipeline for days that are not up to date.",
 				Flags: []cli.Flag{
 					&cli.DurationFlag{
-						Name:  "timeout",
-						Usage: "maximum time to run for",
+						Name:        "timeout",
+						Aliases:     []string{"t"},
+						Usage:       "maximum time to run for",
+						DefaultText: "no timeout",
 					},
 					&cli.IntFlag{
-						Name:  "limit",
-						Usage: "maximum number of days to process",
+						Name:        "limit",
+						Aliases:     []string{"l"},
+						Usage:       "maximum number of days to process",
+						DefaultText: "no limit",
+					},
+					&cli.IntFlag{
+						Name:    "concurrency",
+						Aliases: []string{"c"},
+						Value:   1,
+						Usage:   "number of days to run concurrently",
 					},
 					&cli.BoolFlag{
-						Name:  "dry-run",
-						Usage: "only calculate the days that need to be updated, but don't update them",
+						Name:    "dry-run",
+						Aliases: []string{"d"},
+						Usage:   "only calculate the days that need to be updated, but don't update them",
 					},
 				},
 				Action: func(c *cli.Context) error {
@@ -94,13 +106,14 @@ func main() {
 						return err
 					}
 					opts := pipeline.BacklogOptions{
-						DryRun: c.Bool("dry-run"),
+						DryRun:      c.Bool("dry-run"),
+						Concurrency: c.Int("concurrency"),
 					}
 					if c.IsSet("limit") {
 						l := c.Int("limit")
 						opts.Limit = &l
 					}
-					return pipeline.Backlog(session.ec, session.hc, session.sc, opts)
+					return pipeline.Backlog(context.Background(), session.ec, session.hc, session.sc, opts)
 				},
 			},
 			{

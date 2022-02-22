@@ -3,12 +3,15 @@ package pipeline
 import (
 	"archive/tar"
 	"bytes"
+	"context"
 	"crypto/sha256"
+	_ "embed"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/jamespfennell/hoard"
@@ -21,19 +24,20 @@ import (
 	"github.com/jamespfennell/xz"
 )
 
-const softwareVersion = 3
+const softwareVersion = 4
 
 type BacklogOptions struct {
-	Limit  *int
-	DryRun bool
+	Limit       *int
+	DryRun      bool
+	Concurrency int
 }
 
 // Backlog runs the ETL pipeline for all days in the backlog.
-func Backlog(ec *config.Config, hc *hconfig.Config, sc *storage.Client, opts BacklogOptions) error {
+func Backlog(ctx context.Context, ec *config.Config, hc *hconfig.Config, sc *storage.Client, opts BacklogOptions) error {
 	now := time.Now().In(ec.Timezone.AsLoc()).Add(-29 * time.Hour).Format("2006-01-02")
 	endDay, _ := metadata.ParseDay(now)
 
-	m, err := sc.GetMetadata()
+	m, err := sc.GetMetadata(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to obtain metadata: %w", err)
 	}
@@ -44,7 +48,9 @@ func Backlog(ec *config.Config, hc *hconfig.Config, sc *storage.Client, opts Bac
 		return nil
 	}
 	log.Printf("%d days in the backlog:\n", len(pendingDays))
+	l := newLimiter(opts.Concurrency)
 	for i, pendingDay := range pendingDays {
+		pendingDay := pendingDay
 		if opts.Limit != nil && *opts.Limit <= i {
 			fmt.Println("Reached limit, ending...")
 			break
@@ -53,22 +59,28 @@ func Backlog(ec *config.Config, hc *hconfig.Config, sc *storage.Client, opts Bac
 		if opts.DryRun {
 			continue
 		}
-		err := Run(
-			pendingDay.Day,
-			pendingDay.FeedIDs,
-			ec,
-			hc,
-			sc,
-		)
-		if err != nil {
+		l.run(func() error {
+			err := Run(
+				ctx,
+				pendingDay.Day,
+				pendingDay.FeedIDs,
+				ec,
+				hc,
+				sc,
+			)
+			if err != nil {
+				log.Printf("%s: failed: %s", pendingDay.Day, err)
+			} else {
+				log.Printf("%s: success", pendingDay.Day)
+			}
 			return err
-		}
+		})
 	}
-	return nil
+	return l.wait()
 }
 
 // Run runs the ETL pipeline for the provided day.
-func Run(day metadata.Day, feedIDs []string, ec *config.Config, hc *hconfig.Config, sc *storage.Client) error {
+func Run(ctx context.Context, day metadata.Day, feedIDs []string, ec *config.Config, hc *hconfig.Config, sc *storage.Client) error {
 	tmpDir, err := os.MkdirTemp("", fmt.Sprintf("subwaydatanyc_%s_*", day))
 	if err != nil {
 		return fmt.Errorf("failed to create temporary working directory: %w", err)
@@ -79,6 +91,7 @@ func Run(day metadata.Day, feedIDs []string, ec *config.Config, hc *hconfig.Conf
 	end := day.End(ec.Timezone.AsLoc())
 
 	// Stage one: download the data from Hoard
+	log.Printf("%s: stage 1 (download data)", day)
 	availableFeedIDs := map[string]bool{}
 	for _, feed := range hc.Feeds {
 		availableFeedIDs[feed.ID] = true
@@ -111,6 +124,7 @@ func Run(day metadata.Day, feedIDs []string, ec *config.Config, hc *hconfig.Conf
 	}
 
 	// Stage two: run the journal code on each directory of downloaded data.
+	log.Printf("%s: stage 2 (journal)", day)
 	var allTrips []journal.Trip
 	for _, feedID := range feedIDs {
 		source, err := journal.NewDirectoryGtfsrtSource(filepath.Join(tmpDir, feedID))
@@ -126,26 +140,27 @@ func Run(day metadata.Day, feedIDs []string, ec *config.Config, hc *hconfig.Conf
 	}
 
 	// Stage three: export all of the trips.
-	log.Printf("Creating CSV export")
+	log.Printf("%s: stage 3 (create csv)", day)
 	csvBytes, err := export.AsCsvTarXz(allTrips, fmt.Sprintf("%s%s_", ec.RemotePrefix, day))
 	if err != nil {
 		return fmt.Errorf("failed to export trips to CSV: %w", err)
 	}
 
 	// Stage four: create the tar xz of GTFS files.
-	log.Printf("Creating GTFS-RT export")
+	log.Printf("%s: stage 4 (create gtfsrt)", day)
 	gtfsrtBytes, err := createGtfsrtExport(start, end, tmpDir, feedIDs)
 	if err != nil {
 		return fmt.Errorf("failed to create GTFS-RT export: %w", err)
 	}
 
 	// Stage five: upload data to object storage.
+	log.Printf("%s: stage 5 (upload)", day)
 	csvSha256, err := calculateSha256(csvBytes)
 	if err != nil {
 		return fmt.Errorf("failed to calculate SHA-256 hash of CSV upload: %w", err)
 	}
 	target := fmt.Sprintf("%s/%s%s_%s_%s.tar.xz", day.MonthString(), ec.RemotePrefix, day, "csv", csvSha256)
-	if err := sc.Write(csvBytes, target); err != nil {
+	if err := sc.Write(ctx, csvBytes, target); err != nil {
 		return fmt.Errorf("failed to copy csv bytes to object storage: %w", err)
 	}
 
@@ -154,11 +169,12 @@ func Run(day metadata.Day, feedIDs []string, ec *config.Config, hc *hconfig.Conf
 		return fmt.Errorf("failed to calculate SHA-256 hash of GTFS-RT upload: %w", err)
 	}
 	gtfsrtTarget := fmt.Sprintf("%s/%s%s_%s_%s.tar.xz", day.MonthString(), ec.RemotePrefix, day, "gtfsrt", gtfsrtSha256)
-	if err := sc.Write(gtfsrtBytes, gtfsrtTarget); err != nil {
+	if err := sc.Write(ctx, gtfsrtBytes, gtfsrtTarget); err != nil {
 		return fmt.Errorf("failed to copy gtfsrt to object storage: %w", err)
 	}
 
-	// Stage six: update the metadata in Git.
+	// Stage six: update the metadata.
+	log.Printf("%s: stage 6 (metadata update)", day)
 	newProcessedDay := metadata.ProcessedDay{
 		Day:             day,
 		Feeds:           feedIDs,
@@ -176,6 +192,7 @@ func Run(day metadata.Day, feedIDs []string, ec *config.Config, hc *hconfig.Conf
 		},
 	}
 	if err := sc.UpdateMetadata(
+		ctx,
 		func(m *metadata.Metadata) bool {
 			for i := range m.ProcessedDays {
 				if m.ProcessedDays[i].Day == day {
@@ -188,7 +205,6 @@ func Run(day metadata.Day, feedIDs []string, ec *config.Config, hc *hconfig.Conf
 				}
 			}
 			m.ProcessedDays = append(m.ProcessedDays, newProcessedDay)
-			// TODO: sort the processed days in the git module - not responsiblity here
 			return true
 		},
 	); err != nil {
@@ -203,10 +219,29 @@ func calculateSha256(b []byte) (string, error) {
 	return fmt.Sprintf("%x", h.Sum(nil))[:12], nil
 }
 
+//go:embed gtfsrt_readme.md
+var gtfsrtReadme []byte
+
 func createGtfsrtExport(start, end time.Time, sourceDir string, feedIDs []string) ([]byte, error) {
 	var gtfsrtTarXz bytes.Buffer
 	xw := xz.NewWriter(&gtfsrtTarXz)
 	tw := tar.NewWriter(xw)
+	now := time.Now()
+	if err := tw.WriteHeader(&tar.Header{
+		// We chose this file name so that it appears first in the archive file.
+		// The filename readme.md would appear below the nycsubway_*.gtfsrt data files.
+		Name:       "gtfsrt_readme.md",
+		Mode:       0600,
+		Size:       int64(len(gtfsrtReadme)),
+		ModTime:    now,
+		AccessTime: now,
+		ChangeTime: now,
+	}); err != nil {
+		return nil, err
+	}
+	if _, err := tw.Write(gtfsrtReadme); err != nil {
+		return nil, err
+	}
 	for _, feedID := range feedIDs {
 		files, err := os.ReadDir(filepath.Join(sourceDir, feedID))
 		if err != nil {
@@ -215,7 +250,9 @@ func createGtfsrtExport(start, end time.Time, sourceDir string, feedIDs []string
 		now := time.Now()
 		for i, file := range files {
 			if time.Since(now) > time.Second {
-				fmt.Printf("GTFS-RT export for feed %s: processed %d/%d files\n", feedID, i, len(files))
+				// TODO: debug logging
+				//	log.Printf("GTFS-RT export for feed %s: processed %d/%d files\n", feedID, i, len(files))
+				_ = i
 				now = time.Now()
 			}
 			info, err := file.Info()
@@ -257,4 +294,44 @@ func createGtfsrtExport(start, end time.Time, sourceDir string, feedIDs []string
 		return nil, err
 	}
 	return gtfsrtTarXz.Bytes(), nil
+}
+
+type limiter struct {
+	c    chan struct{}
+	err  error
+	errM sync.Mutex
+	wg   sync.WaitGroup
+}
+
+func newLimiter(limit int) *limiter {
+	if limit < 1 {
+		limit = 1
+	}
+	c := make(chan struct{}, limit)
+	for i := 0; i < limit; i++ {
+		c <- struct{}{}
+	}
+	return &limiter{
+		c: c,
+	}
+}
+
+func (l *limiter) run(f func() error) {
+	l.wg.Add(1)
+	<-l.c
+	go func() {
+		err := f()
+		l.c <- struct{}{}
+		if err != nil {
+			l.errM.Lock()
+			l.err = err
+			l.errM.Unlock()
+		}
+		l.wg.Done()
+	}()
+}
+
+func (l *limiter) wait() error {
+	l.wg.Wait()
+	return l.err
 }

@@ -57,6 +57,9 @@ func main() {
 	http.HandleFunc("/how-it-works", func(rw http.ResponseWriter, r *http.Request) {
 		writeResponse(rw, howItWorks, contentTypeHtml)
 	})
+	http.HandleFunc("/refresh-metadata", func(rw http.ResponseWriter, r *http.Request) {
+		d.update()
+	})
 
 	for _, file := range static.Get().All() {
 		file := file

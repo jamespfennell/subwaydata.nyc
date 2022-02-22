@@ -2,7 +2,6 @@ package journal
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -87,18 +86,21 @@ func (s *DirectoryGtfsrtSource) Next() *gtfs.Realtime {
 		s.fileNames = s.fileNames[1:]
 		b, err := os.ReadFile(filePath)
 		if err != nil {
-			fmt.Printf("Failed to read %s: %s\n", filePath, err)
+			// TODO: debug logging
+			// log.Printf("Failed to read %s: %s", filePath, err)
 			continue
 		}
 		result, err := gtfs.ParseRealtime(b, &gtfs.ParseRealtimeOptions{
 			UseNyctExtension: true,
 		})
 		if err != nil {
-			fmt.Printf("Failed to parse %s as a GTFS Realtime message: %s\n", filePath, err)
+			// TODO: debug logging
+			// log.Printf("Failed to parse %s as a GTFS Realtime message: %s", filePath, err)
 			continue
 		}
 		if time.Since(s.t) >= time.Second {
-			fmt.Printf("Processed %d/%d files\n", s.startLen-len(s.fileNames), s.startLen)
+			// TODO: debug logging
+			// log.Printf("Processed %d/%d files\n", s.startLen-len(s.fileNames), s.startLen)
 			s.t = time.Now()
 		}
 		return result
@@ -112,7 +114,8 @@ func BuildJournal(source GtfsrtSource, startTime, endTime time.Time) *Journal {
 	for feedMessage := source.Next(); feedMessage != nil; feedMessage = source.Next() {
 		feedMessage := feedMessage
 		if feedMessage.CreatedAt == nil {
-			log.Printf("Skipping realtime feed with no created at field")
+			// TODO: debug logging
+			// log.Printf("Skipping realtime feed with no created at field")
 			continue
 		}
 		createdAt := *feedMessage.CreatedAt
@@ -148,7 +151,8 @@ func BuildJournal(source GtfsrtSource, startTime, endTime time.Time) *Journal {
 			continue
 		}
 		if !trip.IsAssigned {
-			log.Printf("Skipping return of unassigned trip %s\n", trip.TripUID)
+			// TODO: debug logging
+			// log.Printf("Skipping return of unassigned trip %s\n", trip.TripUID)
 			continue
 		}
 		tripIDs = append(tripIDs, tripID)
@@ -163,7 +167,9 @@ func BuildJournal(source GtfsrtSource, startTime, endTime time.Time) *Journal {
 
 func (trip *Trip) update(tripUpdate *gtfs.Trip, feedCreatedAt time.Time) {
 	if trip.IsAssigned && !tripUpdate.NyctIsAssigned {
-		log.Printf("skipping unassigned update for assigned trip %s\n", trip.TripUID)
+		// TODO: this seems to happen a lot, would be nice to figure out what's happening.
+		// log.Printf("skipping unassigned update for assigned trip %s\n", trip.TripUID)
+		return
 	}
 	startTime := tripUpdate.ID.StartDate.Add(tripUpdate.ID.StartTime)
 	vehicle := tripUpdate.GetVehicle()
