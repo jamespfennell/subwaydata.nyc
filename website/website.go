@@ -29,7 +29,13 @@ func main() {
 	flag.Parse()
 
 	d := newDynamicContent(*flagMetadataUrl)
+	pageNotFound := html.PageNotFound()
 	http.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			rw.WriteHeader(http.StatusNotFound)
+			writeResponse(rw, pageNotFound, contentTypeHtml)
+			return
+		}
 		d.updateMutex.RLock()
 		defer d.updateMutex.RUnlock()
 		writeResponse(rw, d.home, contentTypeHtml)

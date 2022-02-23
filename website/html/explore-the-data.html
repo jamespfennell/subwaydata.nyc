@@ -5,28 +5,32 @@
     To download data in bulk, follow the <a href="/programmatic-access">programmatic access instructions</a>.
 </p>
 
-<h3>Index</h3>
-{{range $i, $y := .Years }}
-    {{ if not (eq $i 0) }}
-    </ul>
-    {{ end }}
-    <h4>{{  $y.Title }}</h4>
-    <ul class="links">
-    {{range $m := $y.Months }}
-        <li><a href="#{{ $m.Name }}{{ $y.Title }}">{{  $m.Name }}</a></li>
-    {{ end }}
-{{ end }}
-    </ul>
+<script language="javascript">
+function showHide(elementID) {
+  var hidden = document.getElementById(elementID + '_hidden');
+  var shown = document.getElementById(elementID + '_shown');
+  if (hidden.style.display === "none") {
+    hidden.style.display = "block";
+    shown.style.display = "none";
+  } else {
+    hidden.style.display = "none";
+    shown.style.display = "block";
+  }
+} 
+</script>
 
-
-<h3>Data</h3>
 {{range $i, $y := .Years }}
     {{range $j, $m := $y.Months }}
         {{ if not (and (eq $i 0) (eq $j 0)) }}
     </table>
+    </div>
         {{ end }}
-    <a name="{{ $m.Name }}{{ $y.Title }}"></a>
-    <h4>{{ $m.Title }}</h4>
+    
+    <div id="{{ $m.ID }}_hidden">
+    <h4 onclick="showHide('{{ $m.ID }}'); " class="month"><span>▲</span> {{ $m.Title }}</h4>
+    </div>
+    <div id="{{ $m.ID }}_shown" style="display: none; ">
+    <h4 onclick="showHide('{{ $m.ID }}'); " class="month"><span>▼</span> {{ $m.Title }}</h4>
     <table>
         <tr>
             <th>Date</th>
@@ -44,5 +48,6 @@
     {{ end }}
 {{ end }}
     </table>
+    </div>
 
 {{ end }}

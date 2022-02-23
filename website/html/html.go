@@ -52,7 +52,7 @@ func Home(m *metadata.Metadata) string {
 		FirstDay:      firstDay.Format("January 2, 2006"),
 		MostRecentDay: mostRecentDay.Format("January 2, 2006"),
 		NumDays:       len(m.ProcessedDays),
-		LastUpdated:   lastUpdated.In(americaNewYork).Format("January 2, 2006 at 15:04"),
+		LastUpdated:   lastUpdated.In(americaNewYork).Format("January 2, 2006 at 3:04pm"),
 		StaticFiles:   static.Get(),
 	}
 	var s strings.Builder
@@ -69,7 +69,7 @@ type year struct {
 
 type month struct {
 	Title string
-	Name  string
+	ID    string
 	Days  []dayData
 }
 
@@ -99,7 +99,7 @@ func ExploreTheData(m *metadata.Metadata) string {
 		if len(year.Months) == 0 || year.Months[j].Title != p.Day.Format("January 2006") {
 			year.Months = append(year.Months, month{
 				Title: p.Day.Format("January 2006"),
-				Name:  p.Day.Format("January"),
+				ID:    p.Day.Format("data-January-02-2006"),
 			})
 			j += 1
 		}
@@ -136,6 +136,10 @@ func DataSchema() string {
 
 func HowItWorks() string {
 	return executeStaticTemplate(t.HowItWorks)
+}
+
+func PageNotFound() string {
+	return executeStaticTemplate(t.PageNotFound)
 }
 
 func executeStaticTemplate(t *template.Template) string {
