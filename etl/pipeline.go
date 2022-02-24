@@ -1,4 +1,4 @@
-package pipeline
+package etl
 
 import (
 	"archive/tar"

@@ -9,8 +9,9 @@ RUN go mod download
 
 COPY . ./
 
-RUN go build -o /usr/bin/website website/website.go
-RUN go build -o /usr/bin/etl etl/etl.go
+RUN go build -o /usr/bin/website ./cmd/website
+RUN go build -o /usr/bin/etl ./cmd/etl
+RUN go build -o /usr/bin/journal ./cmd/journal
 
 RUN go test ./...
 

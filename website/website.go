@@ -1,8 +1,7 @@
-package main
+package website
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -22,13 +21,8 @@ const contentTypeCss = "text/css"
 const contentTypeJpg = "image/jpeg"
 const contentTypeJson = "application/json"
 
-var flagPort = flag.Int("port", 8080, "port to run the HTTP server on")
-var flagMetadataUrl = flag.String("metadata-url", "", "URL for the metadata")
-
-func main() {
-	flag.Parse()
-
-	d := newDynamicContent(*flagMetadataUrl)
+func Run(metadataUrl string, port int) {
+	d := newDynamicContent(metadataUrl)
 	pageNotFound := html.PageNotFound()
 	http.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -84,8 +78,8 @@ func main() {
 		})
 	}
 
-	log.Printf("Launching HTTP server on port %d\n", *flagPort)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *flagPort), nil))
+	log.Printf("Launching HTTP server on port %d\n", port)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
 }
 
 type dynamicContent struct {

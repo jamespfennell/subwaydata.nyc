@@ -7,9 +7,9 @@ import (
 	"os"
 
 	hconfig "github.com/jamespfennell/hoard/config"
+	"github.com/jamespfennell/subwaydata.nyc/etl"
 	"github.com/jamespfennell/subwaydata.nyc/etl/config"
 	"github.com/jamespfennell/subwaydata.nyc/etl/periodic"
-	"github.com/jamespfennell/subwaydata.nyc/etl/pipeline"
 	"github.com/jamespfennell/subwaydata.nyc/etl/storage"
 	"github.com/jamespfennell/subwaydata.nyc/metadata"
 	"github.com/urfave/cli/v2"
@@ -57,7 +57,7 @@ func main() {
 						if err != nil {
 							return err
 						}
-						return pipeline.Run(
+						return etl.Run(
 							context.Background(),
 							d,
 							// TODO: !!!
@@ -105,7 +105,7 @@ func main() {
 					if err != nil {
 						return err
 					}
-					opts := pipeline.BacklogOptions{
+					opts := etl.BacklogOptions{
 						DryRun:      c.Bool("dry-run"),
 						Concurrency: c.Int("concurrency"),
 					}
@@ -113,7 +113,7 @@ func main() {
 						l := c.Int("limit")
 						opts.Limit = &l
 					}
-					return pipeline.Backlog(context.Background(), session.ec, session.hc, session.sc, opts)
+					return etl.Backlog(context.Background(), session.ec, session.hc, session.sc, opts)
 				},
 			},
 			{

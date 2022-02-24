@@ -6,8 +6,8 @@ import (
 	"time"
 
 	hconfig "github.com/jamespfennell/hoard/config"
+	"github.com/jamespfennell/subwaydata.nyc/etl"
 	"github.com/jamespfennell/subwaydata.nyc/etl/config"
-	"github.com/jamespfennell/subwaydata.nyc/etl/pipeline"
 	"github.com/jamespfennell/subwaydata.nyc/etl/storage"
 )
 
@@ -53,7 +53,7 @@ func Run(ctx context.Context, ec *config.Config, hc *hconfig.Config, sc *storage
 		case start := <-ticker.C:
 			//ctx, cancelFunc := context.WithTimeout(ctx, startToTimeout[start])
 			fmt.Println("Running backlog for time", start)
-			pipeline.Backlog(ctx, ec, hc, sc, pipeline.BacklogOptions{})
+			etl.Backlog(ctx, ec, hc, sc, etl.BacklogOptions{})
 		case <-ctx.Done():
 			return
 		}
