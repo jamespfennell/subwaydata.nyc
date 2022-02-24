@@ -3,7 +3,7 @@
     Subway Data NYC hosts a growing dataset of train arrival times for the New York City subway starting April 1, 2021.
     For each trip that runs in the subway,
     the dataset contains the list of stations the trip called at and the times it stopped.
-    The dataset is updated every morning at around 6am with data from the previous day.
+    The dataset is updated every morning at around 7am with data from the previous day.
 </p>
 <p>
     <a href="/explore-the-data">Explore the data</a> to get started.
@@ -25,11 +25,9 @@
 
 
     <h2>Metadata</h2>
-    <ul>
-        <li>Last updated: {{ .LastUpdated }}.</li>
-        <li>Most recent day of data: {{ .MostRecentDay }}.</li>
-        <li>Number of days of data: {{ .NumDays }}.</li>
-    </ul>
+        <p>Last updated: {{ .LastUpdated }}.</p>
+        <p>Most recent day of data: {{ .MostRecentDay }}.</p>
+        <p>Number of days of data: {{ .NumDays }}.</p>
 
 {{ end }}
 
