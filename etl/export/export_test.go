@@ -17,7 +17,7 @@ var trip journal.Trip = journal.Trip{
 	TripUID:     "TripUID",
 	TripID:      "TripID",
 	RouteID:     "RouteID",
-	DirectionID: gtfs.DirectionIDTrue,
+	DirectionID: gtfs.DirectionID_True,
 	VehicleID:   "VehicleID",
 	StartTime:   time.Unix(100, 0),
 	StopTimes: []journal.StopTime{

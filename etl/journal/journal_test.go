@@ -1,10 +1,10 @@
 package journal
 
 import (
-	"reflect"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/jamespfennell/gtfs"
 )
 
@@ -22,7 +22,7 @@ func TestJournal(t *testing.T) {
 		ID: gtfs.TripID{
 			ID:          tripID1,
 			RouteID:     routeID1,
-			DirectionID: gtfs.DirectionIDTrue,
+			DirectionID: gtfs.DirectionID_True,
 			StartTime:   100 * time.Second,
 			StartDate:   mt(0),
 		},
@@ -36,7 +36,7 @@ func TestJournal(t *testing.T) {
 	source := &testGtfsrtSource{
 		feeds: []*gtfs.Realtime{
 			{
-				CreatedAt: mtp(0),
+				CreatedAt: mt(0),
 				Trips: []gtfs.Trip{
 					addStopTimes(
 						gtfsTrip,
@@ -74,7 +74,7 @@ func TestJournal(t *testing.T) {
 				},
 			},
 			{
-				CreatedAt: mtp(7),
+				CreatedAt: mt(7),
 				Trips: []gtfs.Trip{
 					addStopTimes(
 						gtfsTrip,
@@ -97,7 +97,7 @@ func TestJournal(t *testing.T) {
 				},
 			},
 			{
-				CreatedAt: mtp(14),
+				CreatedAt: mt(14),
 				Trips: []gtfs.Trip{
 					addStopTimes(
 						gtfsTrip,
@@ -111,7 +111,7 @@ func TestJournal(t *testing.T) {
 				},
 			},
 			{
-				CreatedAt: mtp(21),
+				CreatedAt: mt(21),
 				Trips:     []gtfs.Trip{},
 			},
 		},
@@ -122,7 +122,7 @@ func TestJournal(t *testing.T) {
 				TripUID:     "100_L_1",
 				TripID:      tripID1,
 				RouteID:     routeID1,
-				DirectionID: gtfs.DirectionIDTrue,
+				DirectionID: gtfs.DirectionID_True,
 				StartTime:   time.Unix(100, 0).UTC(),
 				VehicleID:   trainID1,
 				IsAssigned:  true,
@@ -156,8 +156,8 @@ func TestJournal(t *testing.T) {
 	}
 	j := BuildJournal(source, time.Unix(0, 0), time.Unix(10000, 0))
 
-	if !reflect.DeepEqual(j, &expected) {
-		t.Errorf("Actual:\n%+v\n!= expected:\n%+v", j, &expected)
+	if diff := cmp.Diff(j, &expected); diff != "" {
+		t.Errorf("Actual:\n%+v\n!= expected:\n%+v\ndiff:%s", j, &expected, diff)
 	}
 }
 

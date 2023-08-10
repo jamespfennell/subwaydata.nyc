@@ -1,3 +1,4 @@
+// Package journal contains a tool for building trip journals.
 package journal
 
 import (
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jamespfennell/gtfs"
+	"github.com/jamespfennell/gtfs/extensions/nycttrips"
 )
 
 type Journal struct {
@@ -49,7 +51,9 @@ type StopTime struct {
 	MarkedPast   *time.Time
 }
 
+// TODO: rename Source
 type GtfsrtSource interface {
+	// TODO: change this to return (*gtfs.RealTime, error) and add logic in BuildJournal to be resilient to this
 	Next() *gtfs.Realtime
 }
 
@@ -90,8 +94,12 @@ func (s *DirectoryGtfsrtSource) Next() *gtfs.Realtime {
 			// log.Printf("Failed to read %s: %s", filePath, err)
 			continue
 		}
+		extension := nycttrips.Extension(nycttrips.ExtensionOpts{
+			FilterStaleUnassignedTrips:        true,
+			PreserveMTrainPlatformsInBushwick: false,
+		})
 		result, err := gtfs.ParseRealtime(b, &gtfs.ParseRealtimeOptions{
-			UseNyctExtension: true,
+			Extension: extension,
 		})
 		if err != nil {
 			// TODO: debug logging
@@ -113,12 +121,7 @@ func BuildJournal(source GtfsrtSource, startTime, endTime time.Time) *Journal {
 	i := 0
 	for feedMessage := source.Next(); feedMessage != nil; feedMessage = source.Next() {
 		feedMessage := feedMessage
-		if feedMessage.CreatedAt == nil {
-			// TODO: debug logging
-			// log.Printf("Skipping realtime feed with no created at field")
-			continue
-		}
-		createdAt := *feedMessage.CreatedAt
+		createdAt := feedMessage.CreatedAt
 		newActiveTrips := map[string]bool{}
 		for _, tripUpdate := range feedMessage.Trips {
 			startTime := tripUpdate.ID.StartDate.Add(tripUpdate.ID.StartTime)
@@ -188,7 +191,7 @@ func (trip *Trip) update(tripUpdate *gtfs.Trip, feedCreatedAt time.Time) {
 
 	stopTimeUpdates := tripUpdate.StopTimeUpdates
 
-	p := createParition(trip.StopTimes, stopTimeUpdates)
+	p := createPartition(trip.StopTimes, stopTimeUpdates)
 
 	// Mark old stop times as past
 	for i := range p.past {
@@ -200,7 +203,7 @@ func (trip *Trip) update(tripUpdate *gtfs.Trip, feedCreatedAt time.Time) {
 		update.existing.update(update.update, feedCreatedAt)
 	}
 
-	// Trim obselete stop times (e.g. from a schedule change)
+	// Trim obsolete stop times (e.g. from a schedule change)
 	trip.StopTimes = trip.StopTimes[:len(p.past)+len(p.updated)]
 	if len(trip.StopTimes) == 0 {
 		trip.NumScheduleRewrites += 1
@@ -237,7 +240,7 @@ type partition struct {
 	new     []gtfs.StopTimeUpdate
 }
 
-func createParition(stopTimes []StopTime, updates []gtfs.StopTimeUpdate) partition {
+func createPartition(stopTimes []StopTime, updates []gtfs.StopTimeUpdate) partition {
 	if len(updates) == 0 {
 		return partition{
 			past: stopTimes,

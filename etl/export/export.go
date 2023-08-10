@@ -34,9 +34,9 @@ var funcMap = template.FuncMap{
 	},
 	"FormatDirectionID": func(d gtfs.DirectionID) string {
 		switch d {
-		case gtfs.DirectionIDFalse:
+		case gtfs.DirectionID_False:
 			return "0"
-		case gtfs.DirectionIDTrue:
+		case gtfs.DirectionID_True:
 			return "1"
 		default:
 			return ""
