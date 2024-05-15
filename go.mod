@@ -1,17 +1,20 @@
 module github.com/jamespfennell/subwaydata.nyc
 
-go 1.19
+go 1.22
+
+toolchain go1.22.2
 
 require (
 	github.com/aws/aws-sdk-go v1.42.42
 	github.com/google/go-cmp v0.5.9
 	github.com/jamespfennell/gtfs v0.1.17
-	github.com/jamespfennell/hoard v0.1.1
+	github.com/jamespfennell/hoard v0.1.2
 	github.com/jamespfennell/xz v0.1.2
 	github.com/urfave/cli/v2 v2.3.0
 )
 
 require (
+	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d // indirect
