@@ -16,7 +16,7 @@ RUN go build -o /usr/bin/journal ./cmd/journal
 RUN go test ./...
 
 # We use this buildpack image because it already has SSL certificates installed
-FROM buildpack-deps:buster-curl
+FROM buildpack-deps:stable
 
 COPY --from=builder /usr/bin/website /usr/bin
 COPY --from=builder /usr/bin/etl /usr/bin
