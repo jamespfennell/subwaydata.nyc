@@ -60,6 +60,18 @@ func Run(metadataUrl string, port int) {
 	http.HandleFunc("/refresh-metadata", func(rw http.ResponseWriter, r *http.Request) {
 		d.update()
 	})
+	http.HandleFunc("/data/", func(rw http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path[6:]
+		d.updateMutex.RLock()
+		defer d.updateMutex.RUnlock()
+		path, ok := d.dataRedirects[path]
+		if !ok {
+			rw.WriteHeader(http.StatusNotFound)
+			writeResponse(rw, pageNotFound, contentTypeHtml)
+			return
+		}
+		http.Redirect(rw, r, fmt.Sprintf("https://data.subwaydata.nyc/%s", path), http.StatusFound)
+	})
 
 	for _, file := range static.Get().All() {
 		file := file
@@ -89,6 +101,7 @@ type dynamicContent struct {
 	home           string
 	exploreTheData string
 	metadataJson   string
+	dataRedirects  map[string]string
 }
 
 func newDynamicContent(metadataUrl string) *dynamicContent {
@@ -97,6 +110,7 @@ func newDynamicContent(metadataUrl string) *dynamicContent {
 		home:           html.Home(nil),
 		exploreTheData: html.ExploreTheData(nil),
 		metadataJson:   "\"failed to load metadata\"",
+		dataRedirects:  map[string]string{},
 	}
 	t := time.NewTicker(500 * time.Millisecond)
 	defer t.Stop()
@@ -141,11 +155,16 @@ func (d *dynamicContent) update() error {
 
 	home := html.Home(&m)
 	exploreTheData := html.ExploreTheData(&m)
+	redirects := map[string]string{}
+	for i := range m.ProcessedDays {
+		redirects[fmt.Sprintf("subwaydatanyc_%s_csv.tar.xz", m.ProcessedDays[i].Day)] = m.ProcessedDays[i].Csv.Path
+	}
 	d.updateMutex.Lock()
 	defer d.updateMutex.Unlock()
 	d.home = home
 	d.exploreTheData = exploreTheData
 	d.metadataJson = string(b)
+	d.dataRedirects = redirects
 	return nil
 }
 

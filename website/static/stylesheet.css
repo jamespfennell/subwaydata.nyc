@@ -209,3 +209,7 @@ table tr:nth-child(even) {
         flex: 0 0 590px;
     }
 }
+
+.block {
+    padding: 20px;
+}

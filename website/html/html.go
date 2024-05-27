@@ -105,7 +105,7 @@ func ExploreTheData(m *metadata.Metadata) string {
 		}
 		year.Months[j].Days = append(year.Months[j].Days, dayData{
 			Title:      p.Day.Format("January 02, 2006"),
-			CsvUrl:     fmt.Sprintf("%s/%s", dataBaseUrl, p.Csv.Path),
+			CsvUrl:     fmt.Sprintf("/data/subwaydatanyc_%s_csv.tar.xz", p.Day),
 			CsvSize:    formatBytes(p.Csv.Size),
 			GtfsrtUrl:  fmt.Sprintf("%s/%s", dataBaseUrl, p.Gtfsrt.Path),
 			GtfsrtSize: formatBytes(p.Gtfsrt.Size),
