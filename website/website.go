@@ -16,10 +16,12 @@ import (
 	"github.com/jamespfennell/subwaydata.nyc/website/static"
 )
 
-const contentTypeHtml = "text/html"
-const contentTypeCss = "text/css"
-const contentTypeJpg = "image/jpeg"
-const contentTypeJson = "application/json"
+const (
+	contentTypeHtml = "text/html"
+	contentTypeCss  = "text/css"
+	contentTypeJpg  = "image/jpeg"
+	contentTypeJson = "application/json"
+)
 
 func Run(metadataUrl string, port int) {
 	d := newDynamicContent(metadataUrl)
@@ -30,21 +32,14 @@ func Run(metadataUrl string, port int) {
 			writeResponse(rw, pageNotFound, contentTypeHtml)
 			return
 		}
-		d.updateMutex.RLock()
-		defer d.updateMutex.RUnlock()
-		writeResponse(rw, d.home, contentTypeHtml)
+		writeResponse(rw, d.getHome(), contentTypeHtml)
 	})
 	http.HandleFunc("/explore-the-data", func(rw http.ResponseWriter, r *http.Request) {
-		d.updateMutex.RLock()
-		defer d.updateMutex.RUnlock()
-		writeResponse(rw, d.exploreTheData, contentTypeHtml)
+		writeResponse(rw, d.getExploreTheData(), contentTypeHtml)
 	})
 	http.HandleFunc("/metadata.json", func(rw http.ResponseWriter, r *http.Request) {
-		d.updateMutex.RLock()
-		defer d.updateMutex.RUnlock()
-		writeResponse(rw, d.metadataJson, contentTypeJson)
+		writeResponse(rw, d.getMetadataJson(), contentTypeJson)
 	})
-
 	programmaticAccess := html.ProgrammaticAccess()
 	http.HandleFunc("/programmatic-access", func(rw http.ResponseWriter, r *http.Request) {
 		writeResponse(rw, programmaticAccess, contentTypeHtml)
@@ -62,9 +57,7 @@ func Run(metadataUrl string, port int) {
 	})
 	http.HandleFunc("/data/", func(rw http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path[6:]
-		d.updateMutex.RLock()
-		defer d.updateMutex.RUnlock()
-		path, ok := d.dataRedirects[path]
+		path, ok := d.getDataRedirect(path)
 		if !ok {
 			rw.WriteHeader(http.StatusNotFound)
 			writeResponse(rw, pageNotFound, contentTypeHtml)
@@ -166,6 +159,31 @@ func (d *dynamicContent) update() error {
 	d.metadataJson = string(b)
 	d.dataRedirects = redirects
 	return nil
+}
+
+func (d *dynamicContent) getHome() string {
+	d.updateMutex.RLock()
+	defer d.updateMutex.RUnlock()
+	return d.home
+}
+
+func (d *dynamicContent) getExploreTheData() string {
+	d.updateMutex.RLock()
+	defer d.updateMutex.RUnlock()
+	return d.exploreTheData
+}
+
+func (d *dynamicContent) getMetadataJson() string {
+	d.updateMutex.RLock()
+	defer d.updateMutex.RUnlock()
+	return d.metadataJson
+}
+
+func (d *dynamicContent) getDataRedirect(url string) (string, bool) {
+	d.updateMutex.RLock()
+	defer d.updateMutex.RUnlock()
+	s, b := d.dataRedirects[url]
+	return s, b
 }
 
 func writeResponse(w http.ResponseWriter, s string, contentType string) {
