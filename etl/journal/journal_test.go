@@ -26,7 +26,6 @@ func TestJournal(t *testing.T) {
 			StartTime:   100 * time.Second,
 			StartDate:   mt(0),
 		},
-		NyctIsAssigned: true,
 		Vehicle: &gtfs.Vehicle{
 			ID: &gtfs.VehicleID{
 				ID: trainID1,
