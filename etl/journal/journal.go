@@ -169,7 +169,7 @@ func BuildJournal(source GtfsrtSource, startTime, endTime time.Time) *Journal {
 }
 
 func (trip *Trip) update(tripUpdate *gtfs.Trip, feedCreatedAt time.Time) {
-	if trip.IsAssigned && !tripUpdate.NyctIsAssigned {
+	if trip.IsAssigned && tripUpdate.Vehicle == nil {
 		// TODO: this seems to happen a lot, would be nice to figure out what's happening.
 		// log.Printf("skipping unassigned update for assigned trip %s\n", trip.TripUID)
 		return
@@ -183,7 +183,7 @@ func (trip *Trip) update(tripUpdate *gtfs.Trip, feedCreatedAt time.Time) {
 	trip.DirectionID = tripUpdate.ID.DirectionID
 	trip.StartTime = tripUpdate.ID.StartDate.Add(tripUpdate.ID.StartTime)
 	trip.VehicleID = vehicle.GetID().ID
-	trip.IsAssigned = trip.IsAssigned || tripUpdate.NyctIsAssigned
+	trip.IsAssigned = trip.IsAssigned || tripUpdate.Vehicle != nil
 
 	trip.LastObserved = feedCreatedAt
 	trip.MarkedPast = nil
