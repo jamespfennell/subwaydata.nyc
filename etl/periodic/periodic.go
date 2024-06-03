@@ -3,6 +3,7 @@ package periodic
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	hconfig "github.com/jamespfennell/hoard/config"
@@ -18,8 +19,9 @@ type Interval struct {
 
 // HH:MM:SS-HH:MM:SS
 func NewInterval(s string) (Interval, error) {
+	s = strings.TrimSpace(s)
 	if len(s) != 17 {
-		return Interval{}, fmt.Errorf("string not in the correct form for interval")
+		return Interval{}, fmt.Errorf("string %q too long for internal (want 17, got %d)", s, len(s))
 	}
 	if s[8] != '-' {
 		return Interval{}, fmt.Errorf("string not in the correct form for interval")

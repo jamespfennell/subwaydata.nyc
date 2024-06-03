@@ -39,6 +39,36 @@ func main() {
 		},
 		Commands: []*cli.Command{
 			{
+				Name:  "delete",
+				Usage: "delete a range of processed days",
+				Flags: []cli.Flag{
+					&cli.StringSliceFlag{
+						Name:  "day",
+						Usage: "day to delete",
+					},
+					&cli.BoolFlag{
+						Name:  "yes",
+						Usage: "perform the deletions",
+					},
+				},
+				Action: func(c *cli.Context) error {
+					session, err := newSession(c)
+					if err != nil {
+						return err
+					}
+					var days []metadata.Day
+					for _, rawDay := range c.StringSlice("day") {
+						day, err := metadata.ParseDay(rawDay)
+						if err != nil {
+							return fmt.Errorf("failed to parse start date: %w", err)
+						}
+						days = append(days, day)
+					}
+					ctx := context.Background()
+					return etl.DeleteDays(ctx, days, !c.Bool("yes"), session.ec, session.sc)
+				},
+			},
+			{
 				Name:        "run",
 				Usage:       "run the ETL pipeline for a specific day",
 				UsageText:   "etl run YYYY-MM-DD",

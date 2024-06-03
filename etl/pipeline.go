@@ -79,6 +79,34 @@ func Backlog(ctx context.Context, ec *config.Config, hc *hconfig.Config, sc *sto
 	return l.wait()
 }
 
+// DeleteDays deletes the specified days from the metadata.
+func DeleteDays(ctx context.Context, days []metadata.Day, dryRun bool, ec *config.Config, sc *storage.Client) error {
+	daysSet := map[metadata.Day]bool{}
+	for _, day := range days {
+		daysSet[day] = true
+	}
+	sc.UpdateMetadata(ctx, func(md *metadata.Metadata) bool {
+		var deleted []metadata.Day
+		retainedDays := make([]metadata.ProcessedDay, 0, len(md.ProcessedDays))
+		for _, day := range md.ProcessedDays {
+			if daysSet[day.Day] {
+				deleted = append(deleted, day.Day)
+				continue
+			}
+			retainedDays = append(retainedDays, day)
+		}
+		fmt.Printf("Will delete %d day(s): %s\n", len(deleted), deleted)
+		md.ProcessedDays = retainedDays
+		if dryRun {
+			fmt.Println("Skipping deletions because dry run mode is on.")
+			return false
+		}
+		fmt.Printf("Deleted %d day(s).\n", len(deleted))
+		return true
+	})
+	return nil
+}
+
 // Run runs the ETL pipeline for the provided day.
 func Run(ctx context.Context, day metadata.Day, feedIDs []string, ec *config.Config, hc *hconfig.Config, sc *storage.Client) error {
 	tmpDir, err := os.MkdirTemp("", fmt.Sprintf("subwaydatanyc_%s_*", day))
