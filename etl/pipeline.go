@@ -14,11 +14,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jamespfennell/gtfs/journal"
 	"github.com/jamespfennell/hoard"
 	hconfig "github.com/jamespfennell/hoard/config"
 	"github.com/jamespfennell/subwaydata.nyc/etl/config"
 	"github.com/jamespfennell/subwaydata.nyc/etl/export"
-	"github.com/jamespfennell/subwaydata.nyc/etl/journal"
 	"github.com/jamespfennell/subwaydata.nyc/etl/storage"
 	"github.com/jamespfennell/subwaydata.nyc/metadata"
 	"github.com/jamespfennell/xz"

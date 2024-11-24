@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/jamespfennell/gtfs/journal"
 	"github.com/jamespfennell/subwaydata.nyc/etl/export"
-	"github.com/jamespfennell/subwaydata.nyc/etl/journal"
 )
 
 var printStopTimes = flag.Bool("s", false, "Print stop times")

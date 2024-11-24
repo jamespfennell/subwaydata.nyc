@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/jamespfennell/gtfs"
-	"github.com/jamespfennell/subwaydata.nyc/etl/journal"
+	"github.com/jamespfennell/gtfs/journal"
 	"github.com/jamespfennell/xz"
 )
 
