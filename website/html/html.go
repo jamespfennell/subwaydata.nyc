@@ -24,9 +24,12 @@ func init() {
 	}
 }
 
-func Home(m *metadata.Metadata) string {
+func Home(m *metadata.Metadata, metadataFetched *time.Time) string {
 	if m == nil {
 		m = &metadata.Metadata{}
+	}
+	if metadataFetched == nil {
+		metadataFetched = &time.Time{}
 	}
 	var firstDay metadata.Day
 	var mostRecentDay metadata.Day
@@ -47,12 +50,14 @@ func Home(m *metadata.Metadata) string {
 		MostRecentDay string
 		NumDays       int
 		LastUpdated   string
+		LastFetched   string
 		StaticFiles   static.Files
 	}{
 		FirstDay:      firstDay.Format("January 2, 2006"),
 		MostRecentDay: mostRecentDay.Format("January 2, 2006"),
 		NumDays:       len(m.ProcessedDays),
 		LastUpdated:   lastUpdated.In(americaNewYork).Format("January 2, 2006 at 3:04pm"),
+		LastFetched:   metadataFetched.Format("January 2, 2006 at 3:04pm"),
 		StaticFiles:   static.Get(),
 	}
 	var s strings.Builder

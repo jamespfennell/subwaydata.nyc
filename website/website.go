@@ -100,7 +100,7 @@ type dynamicContent struct {
 func newDynamicContent(metadataUrl string) *dynamicContent {
 	d := dynamicContent{
 		metadataUrl:    metadataUrl,
-		home:           html.Home(nil),
+		home:           html.Home(nil, nil),
 		exploreTheData: html.ExploreTheData(nil),
 		metadataJson:   "\"failed to load metadata\"",
 		dataRedirects:  map[string]string{},
@@ -146,7 +146,8 @@ func (d *dynamicContent) update() error {
 		return err
 	}
 
-	home := html.Home(&m)
+	now := time.Now()
+	home := html.Home(&m, &now)
 	exploreTheData := html.ExploreTheData(&m)
 	redirects := map[string]string{}
 	for i := range m.ProcessedDays {

@@ -55,11 +55,12 @@ func Backlog(ctx context.Context, ec *config.Config, hc *hconfig.Config, sc *sto
 			fmt.Println("Reached limit, ending...")
 			break
 		}
-		log.Printf("Processing backlog for %s\n", pendingDay.Day)
-		if opts.DryRun {
-			continue
-		}
 		l.run(func() error {
+			log.Printf("Processing backlog for %s\n", pendingDay.Day)
+			if opts.DryRun {
+				log.Printf("Skipping because in dry-run mode")
+				return nil
+			}
 			err := Run(
 				ctx,
 				pendingDay.Day,
@@ -109,6 +110,7 @@ func DeleteDays(ctx context.Context, days []metadata.Day, dryRun bool, ec *confi
 
 // Run runs the ETL pipeline for the provided day.
 func Run(ctx context.Context, day metadata.Day, feedIDs []string, ec *config.Config, hc *hconfig.Config, sc *storage.Client) error {
+	log.Printf("starting %s", day)
 	tmpDir, err := os.MkdirTemp("", fmt.Sprintf("subwaydatanyc_%s_*", day))
 	if err != nil {
 		return fmt.Errorf("failed to create temporary working directory: %w", err)

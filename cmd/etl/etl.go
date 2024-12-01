@@ -24,7 +24,7 @@ ETL pipeline for subwaydata.nyc
 
 func main() {
 	app := &cli.App{
-		Name:        "Subway Data NYC ETL Pipeline",
+		Name:        "subwaydata.nyc ETL pipeline",
 		Usage:       "",
 		Description: descriptionMain,
 		Flags: []cli.Flag{

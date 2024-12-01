@@ -26,7 +26,9 @@ func TestTemplates(t *testing.T) {
 	}{
 		{
 			"Home",
-			Home,
+			func(m *metadata.Metadata) string {
+				return Home(m, nil)
+			},
 		},
 		{
 			"ExploreTheData",
