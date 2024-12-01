@@ -6,7 +6,7 @@ toolchain go1.22.2
 
 require (
 	github.com/aws/aws-sdk-go v1.42.42
-	github.com/jamespfennell/gtfs v0.1.22
+	github.com/jamespfennell/gtfs v0.1.24
 	github.com/jamespfennell/hoard v0.1.2
 	github.com/jamespfennell/xz v0.1.2
 	github.com/urfave/cli/v2 v2.3.0

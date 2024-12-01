@@ -4,67 +4,14 @@ import (
 	"archive/tar"
 	"bytes"
 	_ "embed"
-	"fmt"
-	"text/template"
-	"time"
 
-	"github.com/jamespfennell/gtfs"
 	"github.com/jamespfennell/gtfs/journal"
 	"github.com/jamespfennell/xz"
 )
 
-//go:embed trips.csv.tmpl
-var tripsCsvTmpl string
-
-//go:embed stop_times.csv.tmpl
-var stopTimesCsvTmpl string
-
-var funcMap = template.FuncMap{
-	"NullableString": func(s *string) string {
-		if s == nil {
-			return ""
-		}
-		return *s
-	},
-	"NullableUnix": func(t *time.Time) string {
-		if t == nil {
-			return ""
-		}
-		return fmt.Sprintf("%d", t.Unix())
-	},
-	"FormatDirectionID": func(d gtfs.DirectionID) string {
-		switch d {
-		case gtfs.DirectionID_False:
-			return "0"
-		case gtfs.DirectionID_True:
-			return "1"
-		default:
-			return ""
-		}
-	},
-}
-
-var tripsCsv *template.Template = template.Must(template.New("trips.csv.tmpl").Funcs(funcMap).Parse(tripsCsvTmpl))
-var stopTimesCsv *template.Template = template.Must(template.New("stop_times.csv.tmpl").Funcs(funcMap).Parse(stopTimesCsvTmpl))
-
-func AsCsv(trips []journal.Trip) ([]byte, []byte, error) {
-	var tripsB bytes.Buffer
-	err := tripsCsv.Execute(&tripsB, trips)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var stopTimesB bytes.Buffer
-	err = stopTimesCsv.Execute(&stopTimesB, trips)
-	if err != nil {
-		return nil, nil, err
-	}
-	return tripsB.Bytes(), stopTimesB.Bytes(), nil
-}
-
-// AsCsvTarXz exports the provided trips as a tar.xz archive of csv files.
-func AsCsvTarXz(trips []journal.Trip, filePrefix string) ([]byte, error) {
-	tripsB, stopTimesB, err := AsCsv(trips)
+// Export exports the provided journal as a tar.xz archive of csv files.
+func Export(j *journal.Journal, filePrefix string) ([]byte, error) {
+	csvExport, err := j.ExportToCsv()
 	if err != nil {
 		return nil, err
 	}
@@ -75,8 +22,8 @@ func AsCsvTarXz(trips []journal.Trip, filePrefix string) ([]byte, error) {
 		Name string
 		Body []byte
 	}{
-		{"trips.csv", tripsB},
-		{"stop_times.csv", stopTimesB},
+		{"trips.csv", csvExport.TripsCsv},
+		{"stop_times.csv", csvExport.StopTimesCsv},
 		// TODO: add a readme
 	}
 	for _, file := range files {

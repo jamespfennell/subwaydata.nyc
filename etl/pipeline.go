@@ -155,7 +155,7 @@ func Run(ctx context.Context, day metadata.Day, feedIDs []string, ec *config.Con
 
 	// Stage two: run the journal code on each directory of downloaded data.
 	log.Printf("%s: stage 2 (journal)", day)
-	var allTrips []journal.Trip
+	mergedJournal := journal.Journal{}
 	for _, feedID := range feedIDs {
 		source, err := journal.NewDirectoryGtfsrtSource(filepath.Join(tmpDir, feedID))
 		if err != nil {
@@ -166,12 +166,12 @@ func Run(ctx context.Context, day metadata.Day, feedIDs []string, ec *config.Con
 			day.Start(ec.Timezone.AsLoc()),
 			day.End(ec.Timezone.AsLoc()),
 		)
-		allTrips = append(allTrips, j.Trips...)
+		mergedJournal.Trips = append(mergedJournal.Trips, j.Trips...)
 	}
 
 	// Stage three: export all of the trips.
 	log.Printf("%s: stage 3 (create csv)", day)
-	csvBytes, err := export.AsCsvTarXz(allTrips, fmt.Sprintf("%s%s_", ec.RemotePrefix, day))
+	csvBytes, err := export.Export(&mergedJournal, fmt.Sprintf("%s%s_", ec.RemotePrefix, day))
 	if err != nil {
 		return fmt.Errorf("failed to export trips to CSV: %w", err)
 	}

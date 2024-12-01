@@ -23,7 +23,7 @@ var trip journal.Trip = journal.Trip{
 	StopTimes: []journal.StopTime{
 		{
 			StopID:        "StopID1",
-			Track:         sptr("Track1"),
+			Track:         ptr("Track1"),
 			ArrivalTime:   nil,
 			DepartureTime: ptr(time.Unix(200, 0)),
 			LastObserved:  time.Unix(200, 0),
@@ -37,7 +37,7 @@ var trip journal.Trip = journal.Trip{
 		},
 		{
 			StopID:        "StopID3",
-			Track:         sptr("Track3"),
+			Track:         ptr("Track3"),
 			ArrivalTime:   ptr(time.Unix(500, 0)),
 			DepartureTime: nil,
 			LastObserved:  time.Unix(400, 0),
@@ -62,9 +62,9 @@ TripUID,StopID3,Track3,500,,400,
 
 func TestAsCsv(t *testing.T) {
 	prefix := "somePrefix_"
-	trips := []journal.Trip{trip}
+	j := journal.Journal{Trips: []journal.Trip{trip}}
 
-	result, err := AsCsvTarXz(trips, prefix)
+	result, err := Export(&j, prefix)
 	if err != nil {
 		t.Fatalf("AsCsv function failed: %s", err)
 	}
@@ -108,10 +108,6 @@ func unTar(b []byte) map[string]string {
 	return result
 }
 
-func ptr(t time.Time) *time.Time {
+func ptr[T any](t T) *T {
 	return &t
-}
-
-func sptr(s string) *string {
-	return &s
 }
