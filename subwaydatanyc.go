@@ -179,11 +179,13 @@ func main() {
 					&cli.IntFlag{
 						Name:        "port",
 						Usage:       "port to run the HTTP server on",
+						Value:       8080,
 						DefaultText: "8080",
 					},
 					&cli.StringFlag{
-						Name:  "metadata-url",
-						Usage: "URL for the metadata",
+						Name:     "metadata-url",
+						Usage:    "URL for the metadata",
+						Required: true,
 					},
 				},
 				Action: func(ctx *cli.Context) error {
