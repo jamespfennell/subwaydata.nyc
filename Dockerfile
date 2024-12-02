@@ -9,6 +9,7 @@ RUN go mod download
 
 COPY . ./
 
+RUN ls -lah
 RUN go build -o /usr/bin/subwaydatanyc .
 
 RUN go test ./...
@@ -18,4 +19,4 @@ FROM buildpack-deps:stable
 
 COPY --from=builder /usr/bin/subwaydatanyc /usr/bin
 
-ENTRYPOINT ["website"]
+ENTRYPOINT ["subwaydatanyc"]
