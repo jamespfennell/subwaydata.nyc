@@ -165,6 +165,9 @@ func main() {
 								}
 								intervals = append(intervals, interval)
 							}
+							if err := etl.CleanWorkspace(); err != nil {
+								return fmt.Errorf("failed to clean workspace: %w", err)
+							}
 							ctx := context.Background()
 							periodic.Run(ctx, session.ec, session.hc, session.sc, intervals)
 							return nil

@@ -66,11 +66,10 @@ func (c *Client) GetMetadata(ctx context.Context) (*metadata.Metadata, error) {
 		Key:    aws.String(filepath.Join(c.ec.BucketPrefix, c.ec.MetadataPath)),
 	})
 	if err != nil {
-		if a, ok := err.(awserr.Error); ok {
-			if a.Code() == s3.ErrCodeNoSuchKey {
-				return &metadata.Metadata{}, nil
-			}
+		if a, ok := err.(awserr.Error); ok && a.Code() == s3.ErrCodeNoSuchKey {
+			return &metadata.Metadata{}, nil
 		}
+		return nil, fmt.Errorf("failed to read metadata from object storage: %w", err)
 	}
 	defer o.Body.Close()
 	b, err := io.ReadAll(o.Body)

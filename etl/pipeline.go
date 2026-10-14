@@ -26,6 +26,17 @@ import (
 
 const softwareVersion = 4
 
+// workspaceDir is the directory in which the pipeline stores all of its temporary files.
+var workspaceDir = filepath.Join(os.TempDir(), "subwaydatanyc")
+
+// CleanWorkspace deletes all temporary files left behind by previous pipeline runs.
+//
+// Runs normally clean up after themselves, but files can be left behind if the process
+// is killed or panics in the middle of a run. This must not be called while a run is in progress.
+func CleanWorkspace() error {
+	return os.RemoveAll(workspaceDir)
+}
+
 type BacklogOptions struct {
 	Limit       *int
 	DryRun      bool
@@ -111,7 +122,10 @@ func DeleteDays(ctx context.Context, days []metadata.Day, dryRun bool, ec *confi
 // Run runs the ETL pipeline for the provided day.
 func Run(ctx context.Context, day metadata.Day, feedIDs []string, ec *config.Config, hc *hconfig.Config, sc *storage.Client) error {
 	log.Printf("starting %s", day)
-	tmpDir, err := os.MkdirTemp("", fmt.Sprintf("subwaydatanyc_%s_*", day))
+	if err := os.MkdirAll(workspaceDir, 0755); err != nil {
+		return fmt.Errorf("failed to create workspace directory: %w", err)
+	}
+	tmpDir, err := os.MkdirTemp(workspaceDir, fmt.Sprintf("%s_*", day))
 	if err != nil {
 		return fmt.Errorf("failed to create temporary working directory: %w", err)
 	}
