@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 
 	hconfig "github.com/jamespfennell/hoard/config"
 	"github.com/jamespfennell/subwaydata.nyc/etl"
 	"github.com/jamespfennell/subwaydata.nyc/etl/config"
 	"github.com/jamespfennell/subwaydata.nyc/etl/periodic"
+	"github.com/jamespfennell/subwaydata.nyc/etl/status"
 	"github.com/jamespfennell/subwaydata.nyc/etl/storage"
 	"github.com/jamespfennell/subwaydata.nyc/metadata"
 	"github.com/jamespfennell/subwaydata.nyc/website"
@@ -19,6 +21,7 @@ import (
 const (
 	etlConfig   = "etl-config"
 	hoardConfig = "hoard-config"
+	statusPort  = "status-port"
 )
 
 func main() {
@@ -148,28 +151,39 @@ func main() {
 					{
 						Name:  "periodic",
 						Usage: "run the ETL pipeline periodically",
+						Flags: []cli.Flag{
+							&cli.IntFlag{
+								Name:        statusPort,
+								Usage:       "port to serve the status page on; if the process fails to start it keeps running to serve the error",
+								DefaultText: "no status page",
+							},
+						},
 						Action: func(c *cli.Context) error {
-							session, err := newSession(c)
+							st := status.New()
+							if c.IsSet(statusPort) {
+								go func() {
+									log.Fatal(st.Serve(c.Int(statusPort)))
+								}()
+							}
+							session, intervals, err := startPeriodic(c)
 							if err != nil {
-								return err
-							}
-							args := c.Args().Slice()
-							if len(args) == 0 {
-								return fmt.Errorf("no intervals provided")
-							}
-							var intervals []periodic.Interval
-							for _, arg := range args {
-								interval, err := periodic.NewInterval(arg)
-								if err != nil {
-									return fmt.Errorf("failed to parse interval: %w", err)
+								if !c.IsSet(statusPort) {
+									return err
 								}
-								intervals = append(intervals, interval)
+								// Keep running so that the error is visible on the status page.
+								log.Printf("Error: %s", err)
+								st.SetStartupError(err)
+								select {}
 							}
-							if err := etl.CleanWorkspace(); err != nil {
-								return fmt.Errorf("failed to clean workspace: %w", err)
+							var schedule []string
+							for _, interval := range intervals {
+								schedule = append(schedule, interval.String())
 							}
-							ctx := context.Background()
-							periodic.Run(ctx, session.ec, session.hc, session.sc, intervals)
+							buckets := []status.Bucket{
+								{Name: session.ec.BucketName, Url: session.ec.BucketUrl, Primary: true},
+							}
+							st.SetStarted(buckets, schedule)
+							periodic.Run(context.Background(), session.ec, session.hc, session.sc, intervals, st)
 							return nil
 						},
 					},
@@ -202,6 +216,30 @@ func main() {
 		fmt.Println("Error:", err)
 		os.Exit(1)
 	}
+}
+
+// startPeriodic performs all of the startup work for the periodic command.
+func startPeriodic(c *cli.Context) (*session, []periodic.Interval, error) {
+	session, err := newSession(c)
+	if err != nil {
+		return nil, nil, err
+	}
+	args := c.Args().Slice()
+	if len(args) == 0 {
+		return nil, nil, fmt.Errorf("no intervals provided")
+	}
+	var intervals []periodic.Interval
+	for _, arg := range args {
+		interval, err := periodic.NewInterval(arg)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to parse interval: %w", err)
+		}
+		intervals = append(intervals, interval)
+	}
+	if err := etl.CleanWorkspace(); err != nil {
+		return nil, nil, fmt.Errorf("failed to clean workspace: %w", err)
+	}
+	return session, intervals, nil
 }
 
 type session struct {

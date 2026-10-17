@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="60">
+    <title>ETL Status · Subway Data NYC</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ .StylesheetPath }}">
+    <style>
+        /* Always use the website's narrow layout, with the header on top. */
+        #page {
+            display: block;
+            max-width: 630px;
+            width: auto;
+            margin: 30px auto;
+            padding: 0 10px;
+        }
+        h1 {
+            text-align: center;
+            word-spacing: normal;
+            margin-bottom: 20px;
+        }
+        #main h2 {
+            margin: 0 0 10px 0;
+        }
+        .state {
+            text-align: center;
+            font-weight: bold;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .state.ok {
+            background: rgb(220, 242, 228);
+            color: rgb(22, 101, 52);
+        }
+        .state.error {
+            background: rgb(254, 226, 226);
+            color: rgb(153, 27, 27);
+        }
+        .state.pending {
+            background: rgb(243, 244, 246);
+            color: #555;
+        }
+        pre.error {
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: rgb(254, 242, 242);
+            border: 1px solid rgb(254, 202, 202);
+            border-radius: 5px;
+            padding: 10px;
+            font-size: 0.85em;
+        }
+        table {
+            width: 100%;
+        }
+        td {
+            /* Long unbroken values, like bucket URLs, would otherwise overflow on narrow screens. */
+            overflow-wrap: anywhere;
+        }
+        td.label {
+            width: 40%;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+
+<div id="page">
+    <div id="header">
+        <h1>Subway Data NYC ETL</h1>
+    </div>
+    <div id="main">
+        <div class="state {{ .StateClass }}">{{ .State }}</div>
+        {{ if .StartupError }}
+        <h3>Startup error</h3>
+        <pre class="error">{{ .StartupError }}</pre>
+        {{ end }}
+
+        <h3>Process</h3>
+        <table>
+            <tr><td class="label">Started</td><td>{{ .ProcessStarted }}</td></tr>
+            {{ if .Schedule }}<tr><td class="label">Schedule</td><td>{{ .Schedule }}</td></tr>{{ end }}
+        </table>
+
+        {{ if not .StartupError }}
+        <h3>Buckets ({{ len .Buckets }})</h3>
+        <table>
+            {{ range .Buckets }}
+            <tr><td>{{ .Name }}{{ if .Primary }} <em>(primary)</em>{{ end }}</td><td>{{ .Url }}</td></tr>
+            {{ end }}
+        </table>
+
+        <h3>Last run</h3>
+        {{ if .LastRun }}
+        <table>
+            <tr><td class="label">Started</td><td>{{ .LastRun.Started }}</td></tr>
+            {{ if .LastRun.Finished }}
+            <tr><td class="label">Finished</td><td>{{ .LastRun.Finished }} ({{ .LastRun.Duration }})</td></tr>
+            <tr><td class="label">Result</td><td>{{ if .LastRun.Error }}Failed{{ else }}Succeeded{{ end }}</td></tr>
+            {{ else }}
+            <tr><td class="label">Result</td><td>In progress</td></tr>
+            {{ end }}
+            {{ if .LastSuccess }}<tr><td class="label">Last success</td><td>{{ .LastSuccess }}</td></tr>{{ end }}
+        </table>
+        {{ if .LastRun.Error }}<pre class="error">{{ .LastRun.Error }}</pre>{{ end }}
+        {{ else }}
+        <p>The pipeline has not run since the process started.</p>
+        {{ end }}
+        {{ end }}
+    </div>
+</div>
+
+</body>
+</html>

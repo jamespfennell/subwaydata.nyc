@@ -3,12 +3,14 @@ package periodic
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
 	hconfig "github.com/jamespfennell/hoard/config"
 	"github.com/jamespfennell/subwaydata.nyc/etl"
 	"github.com/jamespfennell/subwaydata.nyc/etl/config"
+	"github.com/jamespfennell/subwaydata.nyc/etl/status"
 	"github.com/jamespfennell/subwaydata.nyc/etl/storage"
 )
 
@@ -41,7 +43,16 @@ func NewInterval(s string) (Interval, error) {
 	}, nil
 }
 
-func Run(ctx context.Context, ec *config.Config, hc *hconfig.Config, sc *storage.Client, intervals []Interval) {
+func (i Interval) String() string {
+	return fmt.Sprintf("%s-%s", formatDuration(i.Start), formatDuration(i.End))
+}
+
+func formatDuration(d time.Duration) string {
+	d = d.Round(time.Second)
+	return fmt.Sprintf("%02d:%02d:%02d", int(d.Hours()), int(d.Minutes())%60, int(d.Seconds())%60)
+}
+
+func Run(ctx context.Context, ec *config.Config, hc *hconfig.Config, sc *storage.Client, intervals []Interval, st *status.Status) {
 	var starts []time.Duration
 	startToTimeout := map[time.Duration]time.Duration{}
 	for _, interval := range intervals {
@@ -55,7 +66,12 @@ func Run(ctx context.Context, ec *config.Config, hc *hconfig.Config, sc *storage
 		case start := <-ticker.C:
 			//ctx, cancelFunc := context.WithTimeout(ctx, startToTimeout[start])
 			fmt.Println("Running backlog for time", start)
-			etl.Backlog(ctx, ec, hc, sc, etl.BacklogOptions{})
+			st.RunStarted()
+			err := etl.Backlog(ctx, ec, hc, sc, etl.BacklogOptions{})
+			if err != nil {
+				log.Printf("Backlog run failed: %s", err)
+			}
+			st.RunFinished(err)
 		case <-ctx.Done():
 			return
 		}

@@ -46,6 +46,12 @@ at certain times:
 go run ./cmd/etl  --hoard-config $HOARD_CONFIG --etl-config $ETL_CONFIG periodic 05:30:00-06:00:00
 ```
 
+Pass `--status-port PORT` to the periodic command to serve a status page showing
+whether the job started, the configured buckets, and the result of the last run.
+If startup fails (for example, because of an invalid config file),
+the process keeps running so the error is visible on the status page,
+which is then served with HTTP status 503 so that monitoring can detect the failure.
+
 All of these commands have different options and the help text is reasonable:
 
 ```
