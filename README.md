@@ -23,7 +23,10 @@ The code is mostly in the `etl` directory.
 A binary is defined in `cmd/etl`.
 
 The ETL pipeline needs a config file that specifies the feeds to work with
-and credentials for the object storage where the data is stored.
+and the object storage buckets where the data is stored.
+Output is written to every configured bucket.
+Exactly one bucket must be marked as the primary;
+the metadata in the primary bucket is the source of truth for which days have been processed.
 And example of this config is given in `etl/config/sample.json`.
 
 To run the ETL pipeline for a single day:

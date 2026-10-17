@@ -97,7 +97,7 @@ func DeleteDays(ctx context.Context, days []metadata.Day, dryRun bool, ec *confi
 	for _, day := range days {
 		daysSet[day] = true
 	}
-	sc.UpdateMetadata(ctx, func(md *metadata.Metadata) bool {
+	return sc.UpdateMetadata(ctx, func(md *metadata.Metadata) bool {
 		var deleted []metadata.Day
 		retainedDays := make([]metadata.ProcessedDay, 0, len(md.ProcessedDays))
 		for _, day := range md.ProcessedDays {
@@ -116,7 +116,6 @@ func DeleteDays(ctx context.Context, days []metadata.Day, dryRun bool, ec *confi
 		fmt.Printf("Deleted %d day(s).\n", len(deleted))
 		return true
 	})
-	return nil
 }
 
 // Run runs the ETL pipeline for the provided day.

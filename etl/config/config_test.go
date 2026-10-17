@@ -28,6 +28,61 @@ func TestConfig(t *testing.T) {
 	}
 }
 
+func TestParse_Valid(t *testing.T) {
+	c, err := Parse([]byte(sampleConfig))
+	if err != nil {
+		t.Fatalf("Parse(sampleConfig) failed: %s", err)
+	}
+	if len(c.Buckets) != 2 || !c.Buckets[0].Primary || c.Buckets[1].Primary {
+		t.Errorf("Parse(sampleConfig) buckets = %+v, want primary followed by secondary", c.Buckets)
+	}
+}
+
+func TestParse_Invalid(t *testing.T) {
+	bucket := func(url, name string, primary bool) Bucket {
+		return Bucket{Url: url, Name: name, Primary: primary}
+	}
+	testCases := []struct {
+		name    string
+		buckets []Bucket
+	}{
+		{
+			name: "no buckets",
+		},
+		{
+			name:    "no primary",
+			buckets: []Bucket{bucket("a.com", "b1", false), bucket("a.com", "b2", false)},
+		},
+		{
+			name:    "two primaries",
+			buckets: []Bucket{bucket("a.com", "b1", true), bucket("a.com", "b2", true)},
+		},
+		{
+			name:    "duplicate bucket",
+			buckets: []Bucket{bucket("a.com", "b1", true), bucket("a.com", "b1", false)},
+		},
+		{
+			name:    "missing name",
+			buckets: []Bucket{bucket("a.com", "", true)},
+		},
+		{
+			name:    "missing url",
+			buckets: []Bucket{bucket("", "b1", true)},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			b, err := json.Marshal(Config{Buckets: tc.buckets})
+			if err != nil {
+				t.Fatalf("failed to marshal config: %s", err)
+			}
+			if _, err := Parse(b); err == nil {
+				t.Errorf("Parse() succeeded, want error")
+			}
+		})
+	}
+}
+
 func TestCalculatePendingDays(t *testing.T) {
 	jan2 := metadata.NewDay(2022, time.January, 2)
 	jan3 := metadata.NewDay(2022, time.January, 3)

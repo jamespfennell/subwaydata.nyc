@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
 	"time"
 
@@ -16,26 +17,84 @@ type Config struct {
 	// Timezone to use.
 	Timezone Timezone
 
-	// URL of the remote object storage service hosting the bucket.
-	BucketUrl string
-
-	// Access key for the bucket.
-	BucketAccessKey string
-
-	// Secret key for the bucket.
-	BucketSecretKey string
-
-	// Name of the bucket.
-	BucketName string
-
-	// Prefix to add to the object key of all objects stored in the bucket.
-	BucketPrefix string
+	// Object storage buckets the pipeline writes its output to.
+	//
+	// Every artifact and metadata update is written to all buckets.
+	// Exactly one bucket must be marked as the primary.
+	Buckets []Bucket
 
 	// Prefix to add to the file name of all data objects stored in the bucket.
 	RemotePrefix string
 
 	// Path within object storage to the JSON metadata file.
 	MetadataPath string
+}
+
+// Bucket describes an object storage bucket the pipeline writes to.
+type Bucket struct {
+	// Whether this is the primary bucket.
+	//
+	// The metadata in the primary bucket is the source of truth for which days have been processed.
+	Primary bool
+
+	// URL of the remote object storage service hosting the bucket.
+	Url string
+
+	// Region of the bucket. If empty, us-east-1 is used.
+	Region string
+
+	// Access key for the bucket.
+	AccessKey string
+
+	// Secret key for the bucket.
+	SecretKey string
+
+	// Name of the bucket.
+	Name string
+
+	// Prefix to add to the object key of all objects stored in the bucket.
+	Prefix string
+
+	// Canned ACL to set on objects written to the bucket, e.g. "public-read".
+	// If empty, no ACL is set. This must be empty for buckets that don't support ACLs, like Cloudflare R2.
+	Acl string
+}
+
+// Parse parses and validates an ETL config.
+func Parse(b []byte) (*Config, error) {
+	var c Config
+	if err := json.Unmarshal(b, &c); err != nil {
+		return nil, err
+	}
+	if err := c.validate(); err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
+func (c *Config) validate() error {
+	if len(c.Buckets) == 0 {
+		return fmt.Errorf("no buckets configured")
+	}
+	numPrimaries := 0
+	seen := map[[2]string]bool{}
+	for i, bucket := range c.Buckets {
+		if bucket.Url == "" || bucket.Name == "" {
+			return fmt.Errorf("bucket %d: both Url and Name must be set", i)
+		}
+		key := [2]string{bucket.Url, bucket.Name}
+		if seen[key] {
+			return fmt.Errorf("bucket %s/%s appears more than once", bucket.Url, bucket.Name)
+		}
+		seen[key] = true
+		if bucket.Primary {
+			numPrimaries++
+		}
+	}
+	if numPrimaries != 1 {
+		return fmt.Errorf("exactly one bucket must be marked as primary (got %d)", numPrimaries)
+	}
+	return nil
 }
 
 type Feed struct {

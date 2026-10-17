@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -179,8 +178,9 @@ func main() {
 							for _, interval := range intervals {
 								schedule = append(schedule, interval.String())
 							}
-							buckets := []status.Bucket{
-								{Name: session.ec.BucketName, Url: session.ec.BucketUrl, Primary: true},
+							var buckets []status.Bucket
+							for _, b := range session.ec.Buckets {
+								buckets = append(buckets, status.Bucket{Name: b.Name, Url: b.Url, Primary: b.Primary})
 							}
 							st.SetStarted(buckets, schedule)
 							periodic.Run(context.Background(), session.ec, session.hc, session.sc, intervals, st)
@@ -264,17 +264,17 @@ func newSession(c *cli.Context) (*session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the ETL config file from disk: %w", err)
 	}
-	var ec config.Config
-	if err := json.Unmarshal(b, &ec); err != nil {
+	ec, err := config.Parse(b)
+	if err != nil {
 		return nil, fmt.Errorf("failed to parse the ETL config file: %w", err)
 	}
 
-	sc, err := storage.NewClient(&ec)
+	sc, err := storage.NewClient(ec)
 	if err != nil {
 		return nil, err
 	}
 	return &session{
-		ec: &ec,
+		ec: ec,
 		hc: hc,
 		sc: sc,
 	}, nil
