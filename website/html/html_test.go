@@ -31,8 +31,8 @@ func TestTemplates(t *testing.T) {
 			},
 		},
 		{
-			"ExploreTheData",
-			ExploreTheData,
+			"BrowseTheData",
+			BrowseTheData,
 		},
 		{
 			"ProgrammaticAccess",
@@ -60,5 +60,25 @@ func TestTemplates(t *testing.T) {
 		t.Run(tc.name+"_nil_metadata", func(t *testing.T) {
 			tc.f(nil)
 		})
+	}
+}
+
+func TestFormatNumDays(t *testing.T) {
+	testCases := []struct {
+		n    int
+		want string
+	}{
+		{0, "0 days"},
+		{1, "1 day"},
+		{200, "200 days"},
+		{365, "1 year"},
+		{366, "1 year, 1 day"},
+		{730, "2 years"},
+		{2025, "5 years, 200 days"},
+	}
+	for _, tc := range testCases {
+		if got := formatNumDays(tc.n); got != tc.want {
+			t.Errorf("formatNumDays(%d) = %q, want %q", tc.n, got, tc.want)
+		}
 	}
 }

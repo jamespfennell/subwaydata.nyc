@@ -1,47 +1,53 @@
 {{ define "content" }}
 
+<h2>Programmatic access</h2>
+
+<p>
 Individual files can be downloaded on the
-<a href="/explore-the-data">explore the data page</a>.
-If you're interested in downloading the whole dataset you'll probably want to do
+<a href="/browse-the-data">browse the data page</a>.
+If you're interested in downloading the whole dataset you'll want to do so
     using a script.
+</p>
 
-<h2>CSV</h2>
+<p>
+All of the files are hosted on a Cloudflare R2 bucket and downloads come directly
+from Cloudflare.
+Any problems with downloading files in bulk will likely be because of Cloudflare
+rate limiting or abuse prevention.
+</p>
 
-The csv files for the date YYYY-MM-DD can be downloaded at the url:
+<p>
+The CSV files for the date YYYY-MM-DD can be downloaded at the URL:
+</p>
 
-<div class="block">
-    https://subwaydata.nyc/data/subwaydatanyc_YYYY-MM-DD_csv.tar.xz
-</div>
+<pre class="code">https://subwaydata.nyc/data/subwaydatanyc_YYYY-MM-DD_csv.tar.xz</pre>
 
-For example, the data for 2023-09-15 is at
-<div class="block">
-    https://subwaydata.nyc/data/subwaydatanyc_2023-09-15_csv.tar.xz
-</div>
+<p>
+The GTFS realtime files are at the URL:
+</p>
 
+<pre class="code">https://subwaydata.nyc/data/subwaydatanyc_YYYY-MM-DD_gtfsrt.tar.xz</pre>
+
+<p>
+    For example, the data for 2023-09-15 is at
+</p>
+<pre class="code">https://subwaydata.nyc/data/subwaydatanyc_2023-09-15_csv.tar.xz
+https://subwaydata.nyc/data/subwaydatanyc_2023-09-15_gtfsrt.tar.xz</pre>
+
+<p>
 Note that month and day numbers always have two digits.
+</p>
 
-To download all csv data for September 2023, you can run a Python script like this:
+<p>
+To download all CSV data for September 2023, you can run a Python script like this:
+</p>
 
-<pre style="overflow: scroll;">
-import requests
-for i in range(1, 30):
+<pre class="code">import requests
+for i in range(1, 31):
     file_name = f"subwaydatanyc_2023-09-{i:02}_csv.tar.xz"
     url = f"https://subwaydata.nyc/data/{file_name}"
     response = requests.get(url)
     with open(file_name, "wb") as f:
-        f.write(response.content)
-</pre>
+        f.write(response.content)</pre>
 
-
-<h2>GTFS realtime</h2>
-
-Currently we do not offer an easy way to download all of the GTFS realtime files.
-This is because we are concerned about bandwidth charges from our hosting provider.
-The total GTFS realtime dataset is now over 50GB, which would cost us over $0.50
-    for every download of the full dataset.
-If you have ideas for how we can distribute the full dataset
-    without paying an unbounded amount of money,
-    please file an issue on
-    <a href="https://github.com/jamespfennell/subwaydata.nyc">the GitHub repo</a>.
-    
 {{ end }}

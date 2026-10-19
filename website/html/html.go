@@ -12,8 +12,6 @@ import (
 	"github.com/jamespfennell/subwaydata.nyc/website/static"
 )
 
-const dataBaseUrl = "https://data.subwaydata.nyc"
-
 var americaNewYork *time.Location
 
 func init() {
@@ -48,16 +46,16 @@ func Home(m *metadata.Metadata, metadataFetched *time.Time) string {
 	input := struct {
 		FirstDay      string
 		MostRecentDay string
-		NumDays       int
+		Duration      string
 		LastUpdated   string
 		LastFetched   string
 		StaticFiles   static.Files
 	}{
 		FirstDay:      firstDay.Format("January 2, 2006"),
 		MostRecentDay: mostRecentDay.Format("January 2, 2006"),
-		NumDays:       len(m.ProcessedDays),
-		LastUpdated:   lastUpdated.In(americaNewYork).Format("January 2, 2006 at 3:04pm"),
-		LastFetched:   metadataFetched.Format("January 2, 2006 at 3:04pm"),
+		Duration:      formatNumDays(len(m.ProcessedDays)),
+		LastUpdated:   lastUpdated.In(americaNewYork).Format("January 2, 2006 at 3:04pm MST"),
+		LastFetched:   metadataFetched.In(americaNewYork).Format("January 2, 2006 at 3:04pm MST"),
 		StaticFiles:   static.Get(),
 	}
 	var s strings.Builder
@@ -69,6 +67,7 @@ func Home(m *metadata.Metadata, metadataFetched *time.Time) string {
 
 type year struct {
 	Title  string
+	ID     string
 	Months []month
 }
 
@@ -87,7 +86,7 @@ type dayData struct {
 	Updated    string
 }
 
-func ExploreTheData(m *metadata.Metadata) string {
+func BrowseTheData(m *metadata.Metadata) string {
 	if m == nil {
 		m = &metadata.Metadata{}
 	}
@@ -97,6 +96,7 @@ func ExploreTheData(m *metadata.Metadata) string {
 		if len(years) == 0 || years[len(years)-1].Title != p.Day.Format("2006") {
 			years = append(years, &year{
 				Title: p.Day.Format("2006"),
+				ID:    p.Day.Format("data-2006"),
 			})
 		}
 		year := years[len(years)-1]
@@ -109,12 +109,12 @@ func ExploreTheData(m *metadata.Metadata) string {
 			j += 1
 		}
 		year.Months[j].Days = append(year.Months[j].Days, dayData{
-			Title:      p.Day.Format("January 02, 2006"),
+			Title:      p.Day.Format("January 2, 2006"),
 			CsvUrl:     fmt.Sprintf("/data/subwaydatanyc_%s_csv.tar.xz", p.Day),
 			CsvSize:    formatBytes(p.Csv.Size),
-			GtfsrtUrl:  fmt.Sprintf("%s/%s", dataBaseUrl, p.Gtfsrt.Path),
+			GtfsrtUrl:  fmt.Sprintf("/data/subwaydatanyc_%s_gtfsrt.tar.xz", p.Day),
 			GtfsrtSize: formatBytes(p.Gtfsrt.Size),
-			Updated:    p.Created.Format("January 02, 2006"),
+			Updated:    p.Created.In(americaNewYork).Format("January 2, 2006"),
 		})
 	}
 	input := struct {
@@ -125,7 +125,7 @@ func ExploreTheData(m *metadata.Metadata) string {
 		StaticFiles: static.Get(),
 	}
 	var s strings.Builder
-	if err := t.ExploreTheData.Execute(&s, input); err != nil {
+	if err := t.BrowseTheData.Execute(&s, input); err != nil {
 		panic(err)
 	}
 	return s.String()
@@ -160,6 +160,27 @@ func executeStaticTemplate(t *template.Template) string {
 	return s.String()
 }
 
+// formatNumDays formats a number of days as years and days, e.g. "5 years, 200 days".
+//
+// A year is counted as 365 days.
+func formatNumDays(n int) string {
+	plural := func(n int, unit string) string {
+		if n == 1 {
+			return fmt.Sprintf("1 %s", unit)
+		}
+		return fmt.Sprintf("%d %ss", n, unit)
+	}
+	years, days := n/365, n%365
+	switch {
+	case years == 0:
+		return plural(days, "day")
+	case days == 0:
+		return plural(years, "year")
+	default:
+		return plural(years, "year") + ", " + plural(days, "day")
+	}
+}
+
 func formatBytes(b int64) string {
 	const unit = 1000
 	if b < unit {
@@ -181,7 +202,7 @@ const rootTemplate = "layout.html"
 
 type Templates struct {
 	Home               *template.Template `html:"home.html"`
-	ExploreTheData     *template.Template `html:"explore-the-data.html"`
+	BrowseTheData      *template.Template `html:"browse-the-data.html"`
 	ProgrammaticAccess *template.Template `html:"programmatic-access.html"`
 	HowItWorks         *template.Template `html:"how-it-works.html"`
 	DataSchema         *template.Template `html:"data-schema.html"`

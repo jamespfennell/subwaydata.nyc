@@ -19,15 +19,15 @@ h2 {
     font-size: 2.3em;
 }
 
-h3 {
-    font-weight: bold;
-    text-align: left;
-    font-size: 1.5em;
-}
-
-h4 {
+/* h3 uses the same style as h4, which is used for the years and months on the browse the data page. */
+h3, h4 {
     font-size: 1.2em;
     font-weight: normal;
+}
+
+h3 {
+    /* Match the browser's default h4 margin. */
+    margin: 1.33em 0;
 }
 
 h4.month {
@@ -36,6 +36,15 @@ h4.month {
 
 h4.month span {
     color: #555;
+}
+
+/* Indent the months within a year so the nesting is visible. */
+.months {
+    padding-left: 20px;
+}
+
+#main h2:first-child {
+    margin-top: 0;
 }
 
 a {
@@ -210,6 +219,14 @@ table tr:nth-child(even) {
     }
 }
 
-.block {
-    padding: 20px;
+pre.code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 0.85em;
+    line-height: 1.5;
+    background: rgb(243, 244, 246);
+    border: 1px solid rgba(27, 31, 35, 0.15);
+    border-radius: 5px;
+    padding: 12px 15px;
+    /* Scroll long lines on narrow screens rather than overflowing the page. */
+    overflow-x: auto;
 }

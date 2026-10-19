@@ -34,8 +34,12 @@ func Run(metadataUrl string, port int) {
 		}
 		writeResponse(rw, d.getHome(), contentTypeHtml)
 	})
+	http.HandleFunc("/browse-the-data", func(rw http.ResponseWriter, r *http.Request) {
+		writeResponse(rw, d.getBrowseTheData(), contentTypeHtml)
+	})
+	// The browse the data page used to be called explore the data. Redirect so that old links keep working.
 	http.HandleFunc("/explore-the-data", func(rw http.ResponseWriter, r *http.Request) {
-		writeResponse(rw, d.getExploreTheData(), contentTypeHtml)
+		http.Redirect(rw, r, "/browse-the-data", http.StatusMovedPermanently)
 	})
 	http.HandleFunc("/metadata.json", func(rw http.ResponseWriter, r *http.Request) {
 		writeResponse(rw, d.getMetadataJson(), contentTypeJson)
@@ -91,19 +95,19 @@ type dynamicContent struct {
 	updateMutex sync.RWMutex
 	metadataUrl string
 
-	home           string
-	exploreTheData string
-	metadataJson   string
-	dataRedirects  map[string]string
+	home          string
+	browseTheData string
+	metadataJson  string
+	dataRedirects map[string]string
 }
 
 func newDynamicContent(metadataUrl string) *dynamicContent {
 	d := dynamicContent{
-		metadataUrl:    metadataUrl,
-		home:           html.Home(nil, nil),
-		exploreTheData: html.ExploreTheData(nil),
-		metadataJson:   "\"failed to load metadata\"",
-		dataRedirects:  map[string]string{},
+		metadataUrl:   metadataUrl,
+		home:          html.Home(nil, nil),
+		browseTheData: html.BrowseTheData(nil),
+		metadataJson:  "\"failed to load metadata\"",
+		dataRedirects: map[string]string{},
 	}
 	t := time.NewTicker(500 * time.Millisecond)
 	defer t.Stop()
@@ -148,15 +152,16 @@ func (d *dynamicContent) update() error {
 
 	now := time.Now()
 	home := html.Home(&m, &now)
-	exploreTheData := html.ExploreTheData(&m)
+	browseTheData := html.BrowseTheData(&m)
 	redirects := map[string]string{}
 	for i := range m.ProcessedDays {
 		redirects[fmt.Sprintf("subwaydatanyc_%s_csv.tar.xz", m.ProcessedDays[i].Day)] = m.ProcessedDays[i].Csv.Path
+		redirects[fmt.Sprintf("subwaydatanyc_%s_gtfsrt.tar.xz", m.ProcessedDays[i].Day)] = m.ProcessedDays[i].Gtfsrt.Path
 	}
 	d.updateMutex.Lock()
 	defer d.updateMutex.Unlock()
 	d.home = home
-	d.exploreTheData = exploreTheData
+	d.browseTheData = browseTheData
 	d.metadataJson = string(b)
 	d.dataRedirects = redirects
 	return nil
@@ -168,10 +173,10 @@ func (d *dynamicContent) getHome() string {
 	return d.home
 }
 
-func (d *dynamicContent) getExploreTheData() string {
+func (d *dynamicContent) getBrowseTheData() string {
 	d.updateMutex.RLock()
 	defer d.updateMutex.RUnlock()
-	return d.exploreTheData
+	return d.browseTheData
 }
 
 func (d *dynamicContent) getMetadataJson() string {

@@ -1,34 +1,34 @@
 {{ define "content" }}
 <p>
-    Subway Data NYC hosts a growing dataset of train arrival times for the New York City subway starting April 1, 2021.
+    subwaydata.nyc hosts a growing dataset of train times for the New York City subway starting April 1, 2021.
     For each trip that runs in the subway,
-    the dataset contains the list of stations the trip called at and the times it stopped.
-    The dataset is updated every morning at around 7am with data from the previous day.
+    the dataset records the list of stations the trip called at and the times it stopped.
+    The dataset is automatically updated every morning with data from the previous day.
 </p>
 <p>
-    <a href="/explore-the-data">Explore the data</a> to get started.
+    <a href="/browse-the-data">Browse the data</a> to get started.
 </p>
 
 <img src="{{ .StaticFiles.West8thStreetJpg.FullPath }}" alt="West 8th Street station in Coney Island, Brooklyn" class="display-img">
 <p class="caption">by <a href="https://unsplash.com/@punttim">Tim Gouw</a> via Unsplash</p>
 
 <p>
-    The dataset is built using the <a href="https://api.mta.info">GTFS Realtime data feeds published by the MTA</a>.
-    The structure of the dataset
-      is described in the <a href="/data-schema"> data schema page</a>.
-    The <a href="/how-it-works">how it works page</a> describes how the dataset is build.
+    The dataset is built using the <a href="https://api.mta.info">GTFS realtime data feeds published by the MTA</a>.
+    Its structure is described in the <a href="/data-schema">data schema page</a>.
+    The raw GTFS realtime data is also available for download.
+    The <a href="/how-it-works">how it works page</a> describes the software systems that power the project.
 </p>
 <p>
     All of the <a href="https://github.com/jamespfennell/subwaydata.nyc">software</a> used 
         (including this website) is open source and adaptable for other transit systems.
+    If you use the dataset for a public project, please cite subwaydata.nyc accordingly.
 </p>
 
 
-    <h2>Metadata</h2>
+    <h3>Metadata</h3>
         <p>Dataset last updated: {{ .LastUpdated }}.</p>
         <p>Most recent day of data: {{ .MostRecentDay }}.</p>
-        <p>Number of days of data: {{ .NumDays }}.</p>
+        <p>Duration of data: {{ .Duration }}.</p>
         <p>Metadata last fetched: {{ .LastFetched }}.</p>
 
 {{ end }}
-
