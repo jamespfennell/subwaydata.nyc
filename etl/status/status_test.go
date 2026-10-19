@@ -6,11 +6,14 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	// Registers the ETL metrics.
+	_ "github.com/jamespfennell/subwaydata.nyc/etl/metrics"
 )
 
 var testBuckets = []Bucket{
-	{Primary: true, Url: "nyc3.digitaloceanspaces.com", Name: "do-bucket"},
-	{Url: "account.r2.cloudflarestorage.com", Name: "r2-bucket"},
+	{Id: "digitalocean", Primary: true, Url: "nyc3.digitaloceanspaces.com", Name: "subwaydata"},
+	{Id: "cloudflare", Url: "account.r2.cloudflarestorage.com", Name: "subwaydata"},
 }
 
 func TestRender(t *testing.T) {
@@ -43,7 +46,7 @@ func TestRender(t *testing.T) {
 				s.SetStarted(testBuckets, []string{"05:30:00-06:00:00"})
 			},
 			wantState: "Waiting for first run",
-			wantText:  []string{"Buckets (2)", "do-bucket", "(primary)", "r2-bucket", "05:30:00-06:00:00"},
+			wantText:  []string{"Buckets (2)", "digitalocean", "(primary)", "cloudflare", "account.r2.cloudflarestorage.com", "05:30:00-06:00:00"},
 		},
 		{
 			name: "running",
@@ -61,10 +64,10 @@ func TestRender(t *testing.T) {
 				s.RunStarted()
 				s.RunFinished(nil)
 				s.RunStarted()
-				s.RunFinished(errors.New("failed to copy bytes to bucket r2-bucket"))
+				s.RunFinished(errors.New("failed to copy bytes to bucket cloudflare"))
 			},
 			wantState: "Last run failed",
-			wantText:  []string{"failed to copy bytes to bucket r2-bucket", "Last success"},
+			wantText:  []string{"failed to copy bytes to bucket cloudflare", "Last success"},
 		},
 		{
 			name: "last run succeeded",
@@ -123,5 +126,17 @@ func TestHandler_NotFound(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Errorf("status code = %d, want %d", w.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandler_Metrics(t *testing.T) {
+	w := httptest.NewRecorder()
+	New().Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status code = %d, want %d", w.Code, http.StatusOK)
+	}
+	if want := "subwaydatanyc_etl_days_in_progress"; !strings.Contains(w.Body.String(), want) {
+		t.Errorf("metrics response does not contain %q", want)
 	}
 }

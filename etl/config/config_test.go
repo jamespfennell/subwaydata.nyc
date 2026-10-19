@@ -40,7 +40,7 @@ func TestParse_Valid(t *testing.T) {
 
 func TestParse_Invalid(t *testing.T) {
 	bucket := func(url, name string, primary bool) Bucket {
-		return Bucket{Url: url, Name: name, Primary: primary}
+		return Bucket{Id: url + "/" + name, Url: url, Name: name, Primary: primary}
 	}
 	testCases := []struct {
 		name    string
@@ -60,6 +60,19 @@ func TestParse_Invalid(t *testing.T) {
 		{
 			name:    "duplicate bucket",
 			buckets: []Bucket{bucket("a.com", "b1", true), bucket("a.com", "b1", false)},
+		},
+		{
+			name: "missing ID",
+			buckets: []Bucket{
+				{Url: "a.com", Name: "b1", Primary: true},
+			},
+		},
+		{
+			name: "duplicate ID",
+			buckets: []Bucket{
+				{Id: "id", Url: "a.com", Name: "b1", Primary: true},
+				{Id: "id", Url: "b.com", Name: "b1"},
+			},
 		},
 		{
 			name:    "missing name",

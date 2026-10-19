@@ -61,6 +61,10 @@
             /* Long unbroken values, like bucket URLs, would otherwise overflow on narrow screens. */
             overflow-wrap: anywhere;
         }
+        .muted {
+            color: #555;
+            font-size: 0.9em;
+        }
         td.label {
             width: 40%;
             color: #555;
@@ -90,7 +94,7 @@
         <h3>Buckets ({{ len .Buckets }})</h3>
         <table>
             {{ range .Buckets }}
-            <tr><td>{{ .Name }}{{ if .Primary }} <em>(primary)</em>{{ end }}</td><td>{{ .Url }}</td></tr>
+            <tr><td>{{ .Id }}{{ if .Primary }} <em>(primary)</em>{{ end }}</td><td>{{ .Name }}<br><span class="muted">{{ .Url }}</span></td></tr>
             {{ end }}
         </table>
 

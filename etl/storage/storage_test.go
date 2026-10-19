@@ -11,7 +11,11 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/jamespfennell/subwaydata.nyc/etl/config"
+	"github.com/jamespfennell/subwaydata.nyc/etl/metrics"
 	"github.com/jamespfennell/subwaydata.nyc/metadata"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 )
 
 const metadataPath = "metadata/nycsubway.json"
@@ -39,6 +43,10 @@ func (l *putLog) record(name string) {
 
 func newFakeBucket(name string) *fakeBucket {
 	return &fakeBucket{name: name, objects: map[string][]byte{}}
+}
+
+func (b *fakeBucket) id() string {
+	return b.name
 }
 
 func (b *fakeBucket) put(ctx context.Context, data []byte, remotePath string) error {
@@ -117,7 +125,7 @@ var (
 func TestWrite_WritesToAllBuckets(t *testing.T) {
 	c, primary, secondary1, secondary2 := newTestClient()
 
-	if err := c.Write(context.Background(), []byte("data"), "path/to/file"); err != nil {
+	if err := c.Write(context.Background(), []byte("data"), "path/to/file", metrics.ArtifactCsv); err != nil {
 		t.Fatalf("Write() failed: %s", err)
 	}
 
@@ -137,7 +145,7 @@ func TestWrite_FailsIfAnyBucketFails(t *testing.T) {
 				b.failPut = b.name == failing
 			}
 
-			if err := c.Write(context.Background(), []byte("data"), "path/to/file"); err == nil {
+			if err := c.Write(context.Background(), []byte("data"), "path/to/file", metrics.ArtifactCsv); err == nil {
 				t.Errorf("Write() succeeded, want error")
 			}
 		})
@@ -291,7 +299,7 @@ func TestS3Bucket_PutObjectInput(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			b, err := newS3Bucket(config.Bucket{Url: "a.com", Name: "bucket", Prefix: "prefix", Acl: tc.acl})
+			b, err := newS3Bucket(config.Bucket{Id: "id", Url: "a.com", Name: "bucket", Prefix: "prefix", Acl: tc.acl})
 			if err != nil {
 				t.Fatalf("newS3Bucket() failed: %s", err)
 			}
@@ -316,8 +324,42 @@ func TestS3Bucket_PutObjectInput(t *testing.T) {
 }
 
 func TestNewClient_RequiresPrimary(t *testing.T) {
-	_, err := NewClient(&config.Config{Buckets: []config.Bucket{{Url: "a.com", Name: "bucket"}}})
+	_, err := NewClient(&config.Config{Buckets: []config.Bucket{{Id: "id", Url: "a.com", Name: "bucket"}}})
 	if err == nil {
 		t.Errorf("NewClient() succeeded, want error")
 	}
+}
+
+func TestWrite_RecordsMetrics(t *testing.T) {
+	c, _, secondary1, _ := newTestClient()
+	secondary1.failPut = true
+	primaryBytes := metrics.UploadedBytes.WithLabelValues("primary", metrics.ArtifactGtfsrt)
+	secondaryBytes := metrics.UploadedBytes.WithLabelValues("secondary1", metrics.ArtifactGtfsrt)
+	primaryBefore, secondaryBefore := testutil.ToFloat64(primaryBytes), testutil.ToFloat64(secondaryBytes)
+	primaryUploadsBefore := uploadCount(t, "primary")
+	secondaryUploadsBefore := uploadCount(t, "secondary1")
+
+	_ = c.Write(context.Background(), []byte("12345"), "path/to/file", metrics.ArtifactGtfsrt)
+
+	if got := testutil.ToFloat64(primaryBytes) - primaryBefore; got != 5 {
+		t.Errorf("primary uploaded bytes increased by %v, want 5", got)
+	}
+	if got := testutil.ToFloat64(secondaryBytes) - secondaryBefore; got != 0 {
+		t.Errorf("failed secondary uploaded bytes increased by %v, want 0", got)
+	}
+	if got := uploadCount(t, "primary") - primaryUploadsBefore; got != 1 {
+		t.Errorf("primary upload duration observations increased by %d, want 1", got)
+	}
+	if got := uploadCount(t, "secondary1") - secondaryUploadsBefore; got != 1 {
+		t.Errorf("failed secondary upload duration observations increased by %d, want 1", got)
+	}
+}
+
+func uploadCount(t *testing.T, bucketID string) uint64 {
+	t.Helper()
+	var m dto.Metric
+	if err := metrics.UploadDuration.WithLabelValues(bucketID).(prometheus.Histogram).Write(&m); err != nil {
+		t.Fatalf("failed to read histogram: %s", err)
+	}
+	return m.GetHistogram().GetSampleCount()
 }

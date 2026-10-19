@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jamespfennell/subwaydata.nyc/website/static"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const timeFormat = "January 2, 2006 at 3:04:05pm MST"
@@ -45,6 +46,7 @@ type Status struct {
 
 // Bucket describes a bucket the pipeline writes to. Credentials must not be included, as the status page is public.
 type Bucket struct {
+	Id      string
 	Name    string
 	Url     string
 	Primary bool
@@ -104,12 +106,13 @@ func (s *Status) Serve(port int) error {
 	return http.ListenAndServe(fmt.Sprintf(":%d", port), s.Handler())
 }
 
-// Handler returns an HTTP handler for the status page.
+// Handler returns an HTTP handler for the status page and the Prometheus metrics at /metrics.
 //
 // The page is served with status code 503 if the process failed to start, so that automated
 // monitoring can detect the failure, and 200 otherwise.
 func (s *Status) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
 	stylesheet := static.Get().StylesheetCss
 	mux.HandleFunc(stylesheet.FullPath(), func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")

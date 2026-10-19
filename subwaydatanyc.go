@@ -183,7 +183,7 @@ func main() {
 							}
 							var buckets []status.Bucket
 							for _, b := range session.ec.Buckets {
-								buckets = append(buckets, status.Bucket{Name: b.Name, Url: b.Url, Primary: b.Primary})
+								buckets = append(buckets, status.Bucket{Id: b.Id, Name: b.Name, Url: b.Url, Primary: b.Primary})
 							}
 							st.SetStarted(buckets, schedule)
 							periodic.Run(context.Background(), session.ec, session.hc, session.sc, intervals, st)

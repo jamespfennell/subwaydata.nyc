@@ -54,6 +54,8 @@ whether the job started, the configured buckets, and the result of the last run.
 If startup fails (for example, because of an invalid config file),
 the process keeps running so the error is visible on the status page,
 which is then served with HTTP status 503 so that monitoring can detect the failure.
+Prometheus metrics, including the duration of each pipeline stage,
+are served at `/metrics` on the same port.
 
 All of these commands have different options and the help text is reasonable:
 

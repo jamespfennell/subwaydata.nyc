@@ -32,6 +32,11 @@ type Config struct {
 
 // Bucket describes an object storage bucket the pipeline writes to.
 type Bucket struct {
+	// Identifier for the bucket, used in logs, metrics and the status page. Must be unique.
+	//
+	// This is needed because buckets with different providers can have the same name.
+	Id string
+
 	// Whether this is the primary bucket.
 	//
 	// The metadata in the primary bucket is the source of truth for which days have been processed.
@@ -78,10 +83,15 @@ func (c *Config) validate() error {
 	}
 	numPrimaries := 0
 	seen := map[[2]string]bool{}
+	seenIds := map[string]bool{}
 	for i, bucket := range c.Buckets {
-		if bucket.Url == "" || bucket.Name == "" {
-			return fmt.Errorf("bucket %d: both Url and Name must be set", i)
+		if bucket.Id == "" || bucket.Url == "" || bucket.Name == "" {
+			return fmt.Errorf("bucket %d: Id, Url and Name must all be set", i)
 		}
+		if seenIds[bucket.Id] {
+			return fmt.Errorf("bucket ID %q appears more than once", bucket.Id)
+		}
+		seenIds[bucket.Id] = true
 		key := [2]string{bucket.Url, bucket.Name}
 		if seen[key] {
 			return fmt.Errorf("bucket %s/%s appears more than once", bucket.Url, bucket.Name)

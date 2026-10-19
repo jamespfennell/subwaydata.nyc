@@ -9,6 +9,7 @@
   "Timezone": "America/New_York",
   "Buckets": [
     {
+      "Id": "digitalocean",
       "Primary": true,
       "Url": "nyc3.digitaloceanspaces.com",
       "Region": "us-east-1",
@@ -19,6 +20,7 @@
       "Acl": "public-read"
     },
     {
+      "Id": "cloudflare",
       "Primary": false,
       "Url": "ACCOUNT_ID.r2.cloudflarestorage.com",
       "Region": "auto",

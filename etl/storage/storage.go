@@ -18,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/jamespfennell/subwaydata.nyc/etl/config"
+	"github.com/jamespfennell/subwaydata.nyc/etl/metrics"
 	"github.com/jamespfennell/subwaydata.nyc/metadata"
 )
 
@@ -34,6 +35,8 @@ type Client struct {
 
 // bucket is a single object storage bucket.
 type bucket interface {
+	// id returns the ID of the bucket from the config.
+	id() string
 	// put writes the bytes to the object at the provided path.
 	put(ctx context.Context, b []byte, remotePath string) error
 	// get reads the object at the provided path. It returns errNotFound if the object does not exist.
@@ -71,19 +74,26 @@ func newClient(metadataPath string, primary bucket, secondaries []bucket) *Clien
 }
 
 // Write writes the bytes to the provided path in all buckets.
-func (c *Client) Write(ctx context.Context, b []byte, remotePath string) error {
-	return putAll(ctx, append([]bucket{c.primary}, c.secondaries...), b, remotePath)
+//
+// The artifact is one of the metrics.Artifact* constants and is used to label metrics.
+func (c *Client) Write(ctx context.Context, b []byte, remotePath string, artifact string) error {
+	return putAll(ctx, append([]bucket{c.primary}, c.secondaries...), b, remotePath, artifact)
 }
 
 // putAll writes the bytes to all of the buckets in parallel.
-func putAll(ctx context.Context, buckets []bucket, b []byte, remotePath string) error {
+func putAll(ctx context.Context, buckets []bucket, b []byte, remotePath string, artifact string) error {
 	errs := make([]error, len(buckets))
 	var wg sync.WaitGroup
 	for i, bkt := range buckets {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			start := time.Now()
 			errs[i] = bkt.put(ctx, b, remotePath)
+			metrics.UploadDuration.WithLabelValues(bkt.id()).Observe(time.Since(start).Seconds())
+			if errs[i] == nil {
+				metrics.UploadedBytes.WithLabelValues(bkt.id(), artifact).Add(float64(len(b)))
+			}
 		}()
 	}
 	wg.Wait()
@@ -128,10 +138,10 @@ func (c *Client) UpdateMetadata(ctx context.Context, f UpdateMetadataFunc) error
 	if err != nil {
 		return err
 	}
-	if err := putAll(ctx, c.secondaries, b, c.metadataPath); err != nil {
+	if err := putAll(ctx, c.secondaries, b, c.metadataPath, metrics.ArtifactMetadata); err != nil {
 		return fmt.Errorf("failed to write metadata to secondary buckets: %w", err)
 	}
-	return c.primary.put(ctx, b, c.metadataPath)
+	return putAll(ctx, []bucket{c.primary}, b, c.metadataPath, metrics.ArtifactMetadata)
 }
 
 type s3Bucket struct {
@@ -151,9 +161,13 @@ func newS3Bucket(bc config.Bucket) (*s3Bucket, error) {
 	}
 	newSession, err := session.NewSession(s3Config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize object storage client for bucket %s: %w", bc.Name, err)
+		return nil, fmt.Errorf("failed to initialize object storage client for bucket %s: %w", bc.Id, err)
 	}
 	return &s3Bucket{bc: bc, sc: s3.New(newSession)}, nil
+}
+
+func (b *s3Bucket) id() string {
+	return b.bc.Id
 }
 
 func (b *s3Bucket) put(ctx context.Context, data []byte, remotePath string) error {
@@ -161,7 +175,7 @@ func (b *s3Bucket) put(ctx context.Context, data []byte, remotePath string) erro
 	defer cancel()
 	_, err := b.sc.PutObjectWithContext(ctx, b.putObjectInput(data, remotePath))
 	if err != nil {
-		return fmt.Errorf("failed to copy bytes to bucket %s: %w", b.bc.Name, err)
+		return fmt.Errorf("failed to copy bytes to bucket %s: %w", b.bc.Id, err)
 	}
 	return nil
 }
@@ -189,7 +203,7 @@ func (b *s3Bucket) get(ctx context.Context, remotePath string) ([]byte, error) {
 		if a, ok := err.(awserr.Error); ok && a.Code() == s3.ErrCodeNoSuchKey {
 			return nil, errNotFound
 		}
-		return nil, fmt.Errorf("failed to read from bucket %s: %w", b.bc.Name, err)
+		return nil, fmt.Errorf("failed to read from bucket %s: %w", b.bc.Id, err)
 	}
 	defer o.Body.Close()
 	return io.ReadAll(o.Body)

@@ -19,6 +19,7 @@ import (
 	hconfig "github.com/jamespfennell/hoard/config"
 	"github.com/jamespfennell/subwaydata.nyc/etl/config"
 	"github.com/jamespfennell/subwaydata.nyc/etl/export"
+	"github.com/jamespfennell/subwaydata.nyc/etl/metrics"
 	"github.com/jamespfennell/subwaydata.nyc/etl/storage"
 	"github.com/jamespfennell/subwaydata.nyc/metadata"
 	"github.com/jamespfennell/xz"
@@ -54,6 +55,7 @@ func Backlog(ctx context.Context, ec *config.Config, hc *hconfig.Config, sc *sto
 	}
 
 	pendingDays := config.CalculatePendingDays(ec.Feeds, m.ProcessedDays, endDay, softwareVersion)
+	metrics.PendingDays.Set(float64(len(pendingDays)))
 	if len(pendingDays) == 0 {
 		log.Println("No days in the backlog")
 		return nil
@@ -120,6 +122,23 @@ func DeleteDays(ctx context.Context, days []metadata.Day, dryRun bool, ec *confi
 
 // Run runs the ETL pipeline for the provided day.
 func Run(ctx context.Context, day metadata.Day, feedIDs []string, ec *config.Config, hc *hconfig.Config, sc *storage.Client) error {
+	metrics.DaysInProgress.Inc()
+	defer metrics.DaysInProgress.Dec()
+	err := run(ctx, day, feedIDs, ec, hc, sc)
+	recordDayResult(err)
+	return err
+}
+
+func recordDayResult(err error) {
+	if err != nil {
+		metrics.DaysProcessed.WithLabelValues(metrics.ResultFailure).Inc()
+		return
+	}
+	metrics.DaysProcessed.WithLabelValues(metrics.ResultSuccess).Inc()
+	metrics.LastSuccess.SetToCurrentTime()
+}
+
+func run(ctx context.Context, day metadata.Day, feedIDs []string, ec *config.Config, hc *hconfig.Config, sc *storage.Client) error {
 	log.Printf("starting %s", day)
 	if err := os.MkdirAll(workspaceDir, 0755); err != nil {
 		return fmt.Errorf("failed to create workspace directory: %w", err)
@@ -133,8 +152,12 @@ func Run(ctx context.Context, day metadata.Day, feedIDs []string, ec *config.Con
 	start := day.Start(ec.Timezone.AsLoc())
 	end := day.End(ec.Timezone.AsLoc())
 
+	stages := &stageTracker{}
+	defer stages.finish()
+
 	// Stage one: download the data from Hoard
 	log.Printf("%s: stage 1 (download data)", day)
+	stages.start(metrics.StageDownload)
 	availableFeedIDs := map[string]bool{}
 	for _, feed := range hc.Feeds {
 		availableFeedIDs[feed.ID] = true
@@ -168,6 +191,7 @@ func Run(ctx context.Context, day metadata.Day, feedIDs []string, ec *config.Con
 
 	// Stage two: run the journal code on each directory of downloaded data.
 	log.Printf("%s: stage 2 (journal)", day)
+	stages.start(metrics.StageJournal)
 	mergedJournal := journal.Journal{}
 	for _, feedID := range feedIDs {
 		source, err := journal.NewDirectoryGtfsrtSource(filepath.Join(tmpDir, feedID))
@@ -179,11 +203,13 @@ func Run(ctx context.Context, day metadata.Day, feedIDs []string, ec *config.Con
 			day.Start(ec.Timezone.AsLoc()),
 			day.End(ec.Timezone.AsLoc()),
 		)
+		metrics.FeedTrips.WithLabelValues(feedID).Observe(float64(len(j.Trips)))
 		mergedJournal.Trips = append(mergedJournal.Trips, j.Trips...)
 	}
 
 	// Stage three: export all of the trips.
 	log.Printf("%s: stage 3 (create csv)", day)
+	stages.start(metrics.StageCsv)
 	csvBytes, err := export.Export(&mergedJournal, fmt.Sprintf("%s%s_", ec.RemotePrefix, day))
 	if err != nil {
 		return fmt.Errorf("failed to export trips to CSV: %w", err)
@@ -191,19 +217,24 @@ func Run(ctx context.Context, day metadata.Day, feedIDs []string, ec *config.Con
 
 	// Stage four: create the tar xz of GTFS files.
 	log.Printf("%s: stage 4 (create gtfsrt)", day)
-	gtfsrtBytes, err := createGtfsrtExport(start, end, tmpDir, feedIDs)
+	stages.start(metrics.StageGtfsrt)
+	gtfsrtBytes, numFiles, err := createGtfsrtExport(start, end, tmpDir, feedIDs)
 	if err != nil {
 		return fmt.Errorf("failed to create GTFS-RT export: %w", err)
+	}
+	for feedID, n := range numFiles {
+		metrics.FeedGtfsrtFiles.WithLabelValues(feedID).Observe(float64(n))
 	}
 
 	// Stage five: upload data to object storage.
 	log.Printf("%s: stage 5 (upload)", day)
+	stages.start(metrics.StageUpload)
 	csvSha256, err := calculateSha256(csvBytes)
 	if err != nil {
 		return fmt.Errorf("failed to calculate SHA-256 hash of CSV upload: %w", err)
 	}
 	target := fmt.Sprintf("%s/%s%s_%s_%s.tar.xz", day.MonthString(), ec.RemotePrefix, day, "csv", csvSha256)
-	if err := sc.Write(ctx, csvBytes, target); err != nil {
+	if err := sc.Write(ctx, csvBytes, target, metrics.ArtifactCsv); err != nil {
 		return fmt.Errorf("failed to copy csv bytes to object storage: %w", err)
 	}
 
@@ -212,12 +243,13 @@ func Run(ctx context.Context, day metadata.Day, feedIDs []string, ec *config.Con
 		return fmt.Errorf("failed to calculate SHA-256 hash of GTFS-RT upload: %w", err)
 	}
 	gtfsrtTarget := fmt.Sprintf("%s/%s%s_%s_%s.tar.xz", day.MonthString(), ec.RemotePrefix, day, "gtfsrt", gtfsrtSha256)
-	if err := sc.Write(ctx, gtfsrtBytes, gtfsrtTarget); err != nil {
+	if err := sc.Write(ctx, gtfsrtBytes, gtfsrtTarget, metrics.ArtifactGtfsrt); err != nil {
 		return fmt.Errorf("failed to copy gtfsrt to object storage: %w", err)
 	}
 
 	// Stage six: update the metadata.
 	log.Printf("%s: stage 6 (metadata update)", day)
+	stages.start(metrics.StageMetadata)
 	newProcessedDay := metadata.ProcessedDay{
 		Day:             day,
 		Feeds:           feedIDs,
@@ -256,6 +288,30 @@ func Run(ctx context.Context, day metadata.Day, feedIDs []string, ec *config.Con
 	return nil
 }
 
+// stageTracker records metrics for the stages of a single pipeline run.
+type stageTracker struct {
+	current string
+	started time.Time
+}
+
+// start finishes the current stage, if any, and starts the provided stage.
+func (s *stageTracker) start(stage string) {
+	s.finish()
+	s.current = stage
+	s.started = time.Now()
+	metrics.StagesInProgress.WithLabelValues(stage).Inc()
+}
+
+// finish finishes the current stage, if any.
+func (s *stageTracker) finish() {
+	if s.current == "" {
+		return
+	}
+	metrics.StagesInProgress.WithLabelValues(s.current).Dec()
+	metrics.StageDuration.WithLabelValues(s.current).Observe(time.Since(s.started).Seconds())
+	s.current = ""
+}
+
 func calculateSha256(b []byte) (string, error) {
 	h := sha256.New()
 	h.Write(b)
@@ -265,7 +321,11 @@ func calculateSha256(b []byte) (string, error) {
 //go:embed gtfsrt_readme.md
 var gtfsrtReadme []byte
 
-func createGtfsrtExport(start, end time.Time, sourceDir string, feedIDs []string) ([]byte, error) {
+// createGtfsrtExport creates a tar xz archive of the GTFS-RT files for the provided feeds within the time range.
+//
+// It also returns the number of files included for each feed.
+func createGtfsrtExport(start, end time.Time, sourceDir string, feedIDs []string) ([]byte, map[string]int, error) {
+	numFiles := map[string]int{}
 	var gtfsrtTarXz bytes.Buffer
 	xw := xz.NewWriter(&gtfsrtTarXz)
 	tw := tar.NewWriter(xw)
@@ -280,15 +340,17 @@ func createGtfsrtExport(start, end time.Time, sourceDir string, feedIDs []string
 		AccessTime: now,
 		ChangeTime: now,
 	}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if _, err := tw.Write(gtfsrtReadme); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, feedID := range feedIDs {
+		// Set the count explicitly so that feeds with no files are reported with a count of 0.
+		numFiles[feedID] = 0
 		files, err := os.ReadDir(filepath.Join(sourceDir, feedID))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		now := time.Now()
 		for i, file := range files {
@@ -300,7 +362,7 @@ func createGtfsrtExport(start, end time.Time, sourceDir string, feedIDs []string
 			}
 			info, err := file.Info()
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			if info.ModTime().Before(start) || end.Before(info.ModTime()) {
 				continue
@@ -314,29 +376,30 @@ func createGtfsrtExport(start, end time.Time, sourceDir string, feedIDs []string
 				ChangeTime: info.ModTime(),
 			}
 			if err := tw.WriteHeader(hdr); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			f, err := os.Open(filepath.Join(sourceDir, feedID, file.Name()))
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 
 			}
 			if _, err := io.Copy(tw, f); err != nil {
 				_ = f.Close()
-				return nil, err
+				return nil, nil, err
 			}
 			if err := f.Close(); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
+			numFiles[feedID]++
 		}
 	}
 	if err := tw.Close(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := xw.Close(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return gtfsrtTarXz.Bytes(), nil
+	return gtfsrtTarXz.Bytes(), numFiles, nil
 }
 
 type limiter struct {
