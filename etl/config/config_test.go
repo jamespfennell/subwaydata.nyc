@@ -83,6 +83,35 @@ func TestParse_Invalid(t *testing.T) {
 	}
 }
 
+func TestFeedsForDay(t *testing.T) {
+	jan2 := metadata.NewDay(2022, time.January, 2)
+	jan3 := metadata.NewDay(2022, time.January, 3)
+	jan4 := metadata.NewDay(2022, time.January, 4)
+	jan5 := metadata.NewDay(2022, time.January, 5)
+	jan6 := metadata.NewDay(2022, time.January, 6)
+	feeds := []Feed{
+		{Id: "bounded", FirstDay: jan3, LastDay: &jan5},
+		{Id: "unbounded", FirstDay: jan4},
+	}
+	testCases := []struct {
+		day  metadata.Day
+		want []string
+	}{
+		{day: jan2, want: nil},
+		{day: jan3, want: []string{"bounded"}},
+		{day: jan4, want: []string{"bounded", "unbounded"}},
+		{day: jan5, want: []string{"bounded", "unbounded"}},
+		{day: jan6, want: []string{"unbounded"}},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.day.String(), func(t *testing.T) {
+			if got := FeedsForDay(feeds, tc.day); !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("FeedsForDay(%s) = %v, want %v", tc.day, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCalculatePendingDays(t *testing.T) {
 	jan2 := metadata.NewDay(2022, time.January, 2)
 	jan3 := metadata.NewDay(2022, time.January, 3)

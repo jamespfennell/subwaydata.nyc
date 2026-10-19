@@ -135,6 +135,21 @@ func (t Timezone) MarshalJSON() ([]byte, error) {
 	return json.Marshal(t.name)
 }
 
+// FeedsForDay returns the IDs of the feeds that should be processed for the provided day.
+func FeedsForDay(feeds []Feed, day metadata.Day) []string {
+	var result []string
+	for _, feed := range feeds {
+		if day.Before(feed.FirstDay) {
+			continue
+		}
+		if feed.LastDay != nil && feed.LastDay.Before(day) {
+			continue
+		}
+		result = append(result, feed.Id)
+	}
+	return result
+}
+
 func CalculatePendingDays(feeds []Feed, processedDays []metadata.ProcessedDay, lastDay metadata.Day, softwareVersion int) []PendingDay {
 	upperBound := lastDay.Next()
 

@@ -94,11 +94,14 @@ func main() {
 								if err != nil {
 									return err
 								}
+								feedIDs := config.FeedsForDay(session.ec.Feeds, d)
+								if len(feedIDs) == 0 {
+									return fmt.Errorf("no feeds are configured for %s", d)
+								}
 								return etl.Run(
 									context.Background(),
 									d,
-									// TODO: !!!
-									[]string{"nycsubway_L"},
+									feedIDs,
 									session.ec,
 									session.hc,
 									session.sc,
