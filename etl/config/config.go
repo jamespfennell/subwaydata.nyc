@@ -7,7 +7,11 @@ import (
 	"time"
 
 	"github.com/jamespfennell/subwaydata.nyc/metadata"
+	"sigs.k8s.io/yaml"
 )
+
+// DefaultGtfsrtCompressionLevel is the xz compression level used for the GTFS-RT archive if none is configured.
+const DefaultGtfsrtCompressionLevel = 6
 
 // Config describes the configuration for the ETL pipeline.
 type Config struct {
@@ -28,6 +32,20 @@ type Config struct {
 
 	// Path within object storage to the JSON metadata file.
 	MetadataPath string
+
+	// xz compression level (0-9) for the GTFS-RT archive. If unset, DefaultGtfsrtCompressionLevel is used.
+	//
+	// The GTFS-RT archive is large (around 8GB uncompressed per day) and compression dominates its build time.
+	// Levels 4 and above are much slower than level 3 on this data, for around 25% better compression.
+	GtfsrtCompressionLevel *int `json:",omitempty"`
+}
+
+// GtfsrtCompressionLevelOrDefault returns the configured GTFS-RT compression level, or the default if none is set.
+func (c *Config) GtfsrtCompressionLevelOrDefault() int {
+	if c.GtfsrtCompressionLevel == nil {
+		return DefaultGtfsrtCompressionLevel
+	}
+	return *c.GtfsrtCompressionLevel
 }
 
 // Bucket describes an object storage bucket the pipeline writes to.
@@ -66,9 +84,12 @@ type Bucket struct {
 }
 
 // Parse parses and validates an ETL config.
+//
+// The config is YAML. Because JSON is a subset of YAML, JSON configs are also accepted.
+// Keys are matched to fields case-insensitively, so both `remotePrefix` and `RemotePrefix` work.
 func Parse(b []byte) (*Config, error) {
 	var c Config
-	if err := json.Unmarshal(b, &c); err != nil {
+	if err := yaml.Unmarshal(b, &c); err != nil {
 		return nil, err
 	}
 	if err := c.validate(); err != nil {
@@ -78,6 +99,9 @@ func Parse(b []byte) (*Config, error) {
 }
 
 func (c *Config) validate() error {
+	if l := c.GtfsrtCompressionLevel; l != nil && (*l < 0 || *l > 9) {
+		return fmt.Errorf("GtfsrtCompressionLevel must be between 0 and 9 (got %d)", *l)
+	}
 	if len(c.Buckets) == 0 {
 		return fmt.Errorf("no buckets configured")
 	}

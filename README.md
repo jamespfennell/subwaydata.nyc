@@ -27,7 +27,7 @@ and the object storage buckets where the data is stored.
 Output is written to every configured bucket.
 Exactly one bucket must be marked as the primary;
 the metadata in the primary bucket is the source of truth for which days have been processed.
-And example of this config is given in `etl/config/sample.json`.
+And example of this config is given in `etl/config/sample.yml`. JSON configs are also accepted.
 
 To run the ETL pipeline for a single day:
 

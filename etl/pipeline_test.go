@@ -94,7 +94,7 @@ func TestCreateGtfsrtExport_CountsFiles(t *testing.T) {
 	writeFile("feed1", "after.gtfsrt", end.Add(time.Hour))
 	writeFile("feed2", "before.gtfsrt", start.Add(-time.Hour))
 
-	_, numFiles, err := createGtfsrtExport(start, end, dir, []string{"feed1", "feed2"})
+	_, numFiles, err := createGtfsrtExport(start, end, dir, []string{"feed1", "feed2"}, 3)
 	if err != nil {
 		t.Fatalf("createGtfsrtExport() failed: %s", err)
 	}

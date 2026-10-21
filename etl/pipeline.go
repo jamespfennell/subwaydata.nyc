@@ -218,7 +218,7 @@ func run(ctx context.Context, day metadata.Day, feedIDs []string, ec *config.Con
 	// Stage four: create the tar xz of GTFS files.
 	log.Printf("%s: stage 4 (create gtfsrt)", day)
 	stages.start(metrics.StageGtfsrt)
-	gtfsrtBytes, numFiles, err := createGtfsrtExport(start, end, tmpDir, feedIDs)
+	gtfsrtBytes, numFiles, err := createGtfsrtExport(start, end, tmpDir, feedIDs, ec.GtfsrtCompressionLevelOrDefault())
 	if err != nil {
 		return fmt.Errorf("failed to create GTFS-RT export: %w", err)
 	}
@@ -324,10 +324,10 @@ var gtfsrtReadme []byte
 // createGtfsrtExport creates a tar xz archive of the GTFS-RT files for the provided feeds within the time range.
 //
 // It also returns the number of files included for each feed.
-func createGtfsrtExport(start, end time.Time, sourceDir string, feedIDs []string) ([]byte, map[string]int, error) {
+func createGtfsrtExport(start, end time.Time, sourceDir string, feedIDs []string, compressionLevel int) ([]byte, map[string]int, error) {
 	numFiles := map[string]int{}
 	var gtfsrtTarXz bytes.Buffer
-	xw := xz.NewWriter(&gtfsrtTarXz)
+	xw := xz.NewWriterLevel(&gtfsrtTarXz, compressionLevel)
 	tw := tar.NewWriter(xw)
 	now := time.Now()
 	if err := tw.WriteHeader(&tar.Header{

@@ -11,30 +11,62 @@ import (
 	"github.com/jamespfennell/subwaydata.nyc/metadata"
 )
 
-//go:embed sample.json
+//go:embed sample.yml
 var sampleConfig string
-
-func TestConfig(t *testing.T) {
-	var c Config
-	if err := json.Unmarshal([]byte(sampleConfig), &c); err != nil {
-		t.Fatalf("failed to parse config: %s", err)
-	}
-	b, err := json.MarshalIndent(c, "", "  ")
-	if err != nil {
-		t.Fatalf("failed to write config: %s", err)
-	}
-	if string(b) != sampleConfig {
-		t.Errorf("re-written config doesn't match original. Original\n%s\nRe-Written:\n%s", sampleConfig, string(b))
-	}
-}
 
 func TestParse_Valid(t *testing.T) {
 	c, err := Parse([]byte(sampleConfig))
 	if err != nil {
 		t.Fatalf("Parse(sampleConfig) failed: %s", err)
 	}
+	if len(c.Feeds) != 1 || c.Feeds[0].Id != "nycsubway_L" || c.Feeds[0].FirstDay != metadata.NewDay(2021, time.December, 15) || c.Feeds[0].LastDay != nil {
+		t.Errorf("Parse(sampleConfig) feeds = %+v, want the L feed starting 2021-12-15", c.Feeds)
+	}
+	if c.Timezone.AsLoc() == nil || c.Timezone.AsLoc().String() != "America/New_York" {
+		t.Errorf("Parse(sampleConfig) timezone = %v, want America/New_York", c.Timezone.AsLoc())
+	}
 	if len(c.Buckets) != 2 || !c.Buckets[0].Primary || c.Buckets[1].Primary {
 		t.Errorf("Parse(sampleConfig) buckets = %+v, want primary followed by secondary", c.Buckets)
+	}
+	if c.Buckets[0].Acl != "public-read" || c.Buckets[1].Region != "auto" {
+		t.Errorf("Parse(sampleConfig) buckets = %+v, bucket fields not parsed", c.Buckets)
+	}
+	if c.RemotePrefix != "subwaydata-nyc_" || c.MetadataPath != "metadata/nycsubway.json" {
+		t.Errorf("Parse(sampleConfig) = %+v, prefix or metadata path not parsed", c)
+	}
+	if got := c.GtfsrtCompressionLevelOrDefault(); got != 3 {
+		t.Errorf("Parse(sampleConfig) compression level = %d, want 3", got)
+	}
+}
+
+func TestParse_Json(t *testing.T) {
+	// JSON configs are still supported because JSON is a subset of YAML.
+	want, err := Parse([]byte(sampleConfig))
+	if err != nil {
+		t.Fatalf("Parse(sampleConfig) failed: %s", err)
+	}
+	b, err := json.MarshalIndent(want, "", "  ")
+	if err != nil {
+		t.Fatalf("failed to marshal config: %s", err)
+	}
+	got, err := Parse(b)
+	if err != nil {
+		t.Fatalf("Parse(%s) failed: %s", b, err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Parse(JSON config) = %+v, want %+v", got, want)
+	}
+}
+
+func TestGtfsrtCompressionLevelOrDefault(t *testing.T) {
+	c := &Config{}
+	if got := c.GtfsrtCompressionLevelOrDefault(); got != DefaultGtfsrtCompressionLevel {
+		t.Errorf("GtfsrtCompressionLevelOrDefault() = %d, want %d", got, DefaultGtfsrtCompressionLevel)
+	}
+	zero := 0
+	c.GtfsrtCompressionLevel = &zero
+	if got := c.GtfsrtCompressionLevelOrDefault(); got != 0 {
+		t.Errorf("GtfsrtCompressionLevelOrDefault() = %d, want 0", got)
 	}
 }
 
@@ -42,10 +74,23 @@ func TestParse_Invalid(t *testing.T) {
 	bucket := func(url, name string, primary bool) Bucket {
 		return Bucket{Id: url + "/" + name, Url: url, Name: name, Primary: primary}
 	}
+	validBuckets := []Bucket{bucket("a.com", "b1", true)}
+	level := func(l int) *int { return &l }
 	testCases := []struct {
-		name    string
-		buckets []Bucket
+		name             string
+		buckets          []Bucket
+		compressionLevel *int
 	}{
+		{
+			name:             "compression level too low",
+			buckets:          validBuckets,
+			compressionLevel: level(-1),
+		},
+		{
+			name:             "compression level too high",
+			buckets:          validBuckets,
+			compressionLevel: level(10),
+		},
 		{
 			name: "no buckets",
 		},
@@ -85,7 +130,7 @@ func TestParse_Invalid(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			b, err := json.Marshal(Config{Buckets: tc.buckets})
+			b, err := json.Marshal(Config{Buckets: tc.buckets, GtfsrtCompressionLevel: tc.compressionLevel})
 			if err != nil {
 				t.Fatalf("failed to marshal config: %s", err)
 			}

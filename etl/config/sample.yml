@@ -1,0 +1,30 @@
+feeds:
+  - id: nycsubway_L
+    firstDay: "2021-12-15"
+
+timezone: America/New_York
+
+buckets:
+  - id: digitalocean
+    primary: true
+    url: nyc3.digitaloceanspaces.com
+    region: us-east-1
+    accessKey: ""
+    secretKey: ""
+    name: space2.transitdata
+    prefix: subwaydata-nyc
+    acl: public-read
+
+  - id: cloudflare
+    primary: false
+    url: ACCOUNT_ID.r2.cloudflarestorage.com
+    region: auto
+    accessKey: ""
+    secretKey: ""
+    name: subwaydata-nyc
+    prefix: subwaydata-nyc
+    acl: ""
+
+remotePrefix: subwaydata-nyc_
+metadataPath: metadata/nycsubway.json
+gtfsrtCompressionLevel: 3
