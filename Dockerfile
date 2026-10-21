@@ -19,4 +19,7 @@ FROM buildpack-deps:stable
 
 COPY --from=builder /usr/bin/subwaydatanyc /usr/bin
 
+# See Hoard Dockerfile for an explanation
+ENV GLIBC_TUNABLES=glibc.malloc.arena_max=1:glibc.malloc.mmap_threshold=131072:glibc.malloc.trim_threshold=131072
+
 ENTRYPOINT ["subwaydatanyc"]
