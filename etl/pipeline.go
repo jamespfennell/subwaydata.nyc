@@ -86,6 +86,7 @@ func Backlog(ctx context.Context, ec *config.Config, hc *hconfig.Config, sc *sto
 				log.Printf("%s: failed: %s", pendingDay.Day, err)
 			} else {
 				log.Printf("%s: success", pendingDay.Day)
+				metrics.PendingDays.Dec()
 			}
 			return err
 		})

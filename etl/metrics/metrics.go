@@ -56,7 +56,7 @@ var (
 
 	PendingDays = promauto.NewGauge(prometheus.GaugeOpts{
 		Name: "subwaydatanyc_etl_pending_days",
-		Help: "Number of days that needed processing at the start of the most recent backlog run.",
+		Help: "Number of days that still need processing, as of the most recent backlog run.",
 	})
 
 	DaysProcessed = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -92,10 +92,30 @@ var (
 func init() {
 	// Initialize the labeled series so that they are exported with value 0 before the first run,
 	// rather than missing.
+	//
+	// This matters for counters and histograms in particular: Prometheus's increase() treats the
+	// first sample of a series as its starting value, so if a series first appears with count 1
+	// the observation that created it is never counted.
 	for _, stage := range []string{StageDownload, StageJournal, StageCsv, StageGtfsrt, StageUpload, StageMetadata} {
 		StagesInProgress.WithLabelValues(stage)
+		StageDuration.WithLabelValues(stage)
 	}
 	for _, result := range []string{ResultSuccess, ResultFailure} {
 		DaysProcessed.WithLabelValues(result)
+	}
+}
+
+// InitLabels initializes the labeled series whose label values come from the config.
+// See init for why this is needed.
+func InitLabels(feedIDs, bucketIDs []string) {
+	for _, feedID := range feedIDs {
+		FeedGtfsrtFiles.WithLabelValues(feedID)
+		FeedTrips.WithLabelValues(feedID)
+	}
+	for _, bucketID := range bucketIDs {
+		UploadDuration.WithLabelValues(bucketID)
+		for _, artifact := range []string{ArtifactCsv, ArtifactGtfsrt, ArtifactMetadata} {
+			UploadedBytes.WithLabelValues(bucketID, artifact)
+		}
 	}
 }

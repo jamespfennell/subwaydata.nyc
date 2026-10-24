@@ -9,6 +9,7 @@ import (
 	hconfig "github.com/jamespfennell/hoard/config"
 	"github.com/jamespfennell/subwaydata.nyc/etl"
 	"github.com/jamespfennell/subwaydata.nyc/etl/config"
+	"github.com/jamespfennell/subwaydata.nyc/etl/metrics"
 	"github.com/jamespfennell/subwaydata.nyc/etl/periodic"
 	"github.com/jamespfennell/subwaydata.nyc/etl/status"
 	"github.com/jamespfennell/subwaydata.nyc/etl/storage"
@@ -271,6 +272,14 @@ func newSession(c *cli.Context) (*session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse the ETL config file: %w", err)
 	}
+	var feedIDs, bucketIDs []string
+	for _, feed := range ec.Feeds {
+		feedIDs = append(feedIDs, feed.Id)
+	}
+	for _, bucket := range ec.Buckets {
+		bucketIDs = append(bucketIDs, bucket.Id)
+	}
+	metrics.InitLabels(feedIDs, bucketIDs)
 
 	sc, err := storage.NewClient(ec)
 	if err != nil {
